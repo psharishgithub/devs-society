@@ -6,6 +6,9 @@ import UserService from '../services/userService'
 import EventService from '../services/eventService'
 import CollegeService from '../services/collegeService'
 import { adminAuth, requireSuperAdmin, requirePermissions, addCollegeFilter } from '../middleware/roleBasedAuth'
+import { Request, Response } from 'express'
+import QRCodeService from '../services/qrCodeService'
+import auth from '../middleware/auth'
 
 const router = express.Router()
 
@@ -518,6 +521,304 @@ router.get('/events', adminAuth, async (req, res) => {
     })
   } catch (error) {
     console.error('Error fetching events:', error)
+    res.status(500).json({ success: false, message: 'Server error' })
+  }
+})
+
+// @route   POST /api/admin/events
+// @desc    Create new event for admin's college
+// @access  Admin
+router.post('/events', 
+  adminAuth,
+  [
+    body('title').trim().isLength({ min: 3 }).withMessage('Title must be at least 3 characters'),
+    body('description').trim().isLength({ min: 10 }).withMessage('Description must be at least 10 characters'),
+    body('date').isISO8601().withMessage('Valid date is required'),
+    body('location').trim().isLength({ min: 3 }).withMessage('Location must be at least 3 characters'),
+    body('eventType').isIn(['workshop', 'seminar', 'competition', 'social', 'other']).withMessage('Invalid event type'),
+    body('maxAttendees').isInt({ min: 1 }).withMessage('Max attendees must be a positive number'),
+    body('isPaid').isBoolean().withMessage('isPaid must be boolean'),
+    body('price').optional().isFloat({ min: 0 }).withMessage('Price must be a positive number')
+  ],
+  async (req: express.Request, res: express.Response) => {
+    try {
+      const errors = validationResult(req)
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ 
+          success: false, 
+          message: 'Validation failed', 
+          errors: errors.array() 
+        })
+      }
+
+      const admin = await AdminService.findById(req.admin!.id)
+      if (!admin?.assignedCollege) {
+        return res.status(403).json({ 
+          success: false, 
+          message: 'No college assignment found' 
+        })
+      }
+
+      const { 
+        title, 
+        description, 
+        date, 
+        time,
+        location, 
+        eventType, 
+        category,
+        maxAttendees, 
+        requirements,
+        prizes,
+        registrationDeadline,
+        isPaid,
+        price
+      } = req.body
+
+      // Validate payment fields
+      if (isPaid && (!price || price <= 0)) {
+        return res.status(400).json({ 
+          success: false, 
+          message: 'Price is required for paid events and must be greater than 0' 
+        })
+      }
+
+      const eventData = {
+        title,
+        description,
+        date,
+        time: time || '10:00',
+        location,
+        eventType: eventType || 'college-specific',
+        category: category || 'other',
+        maxAttendees: maxAttendees || 100,
+        targetCollege: admin.assignedCollege?.id,
+        organizer: {
+          adminId: req.admin!.id,
+          name: admin.fullName || admin.username,
+          contact: admin.email
+        },
+        requirements: requirements || [],
+        prizes: prizes || [],
+        registrationDeadline: registrationDeadline || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+        isPaid: isPaid || false,
+        price: isPaid ? price : 0
+      }
+
+      const event = await EventService.createEvent(eventData)
+
+      res.status(201).json({
+        success: true,
+        message: 'Event created successfully',
+        event
+      })
+    } catch (error) {
+      console.error('Event creation error:', error)
+      res.status(500).json({ 
+        success: false, 
+        message: 'Server error' 
+      })
+    }
+  }
+)
+
+// @route   GET /api/admin/events/:id/registrations
+// @desc    Get event registrations with QR codes (for admin's college events)
+// @access  Admin
+router.get('/events/:id/registrations', auth, async (req: Request, res: Response) => {
+  try {
+    const eventId = req.params.id
+    const adminId = req.user.id
+    
+    // Get admin details to check college assignment
+    const admin = await AdminService.findById(adminId)
+    if (!admin) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Admin not found' 
+      })
+    }
+
+    // Check if event exists and belongs to admin's college
+    const event = await EventService.findById(eventId)
+    if (!event) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Event not found' 
+      })
+    }
+
+    // For regular admins, only show events from their assigned college
+    if (admin.role === 'admin' && event.targetCollege !== admin.assignedCollege) {
+      return res.status(403).json({ 
+        success: false, 
+        message: 'Access denied. You can only view registrations for events in your assigned college.' 
+      })
+    }
+
+    // Get registrations
+    const registrations = await EventService.getEventRegistrations(eventId)
+    
+    // Add QR codes for each registration
+    const registrationsWithQR = await Promise.all(
+      registrations.map(async (registration) => {
+        const qrCodeData = {
+          eventId: eventId,
+          userId: registration.userId,
+          registrationId: registration.id,
+          eventTitle: event.title,
+          userName: registration.userName || 'Unknown User'
+        }
+        
+        const qrCode = await QRCodeService.generateQRCode(JSON.stringify(qrCodeData))
+        
+        return {
+          ...registration,
+          qrCode
+        }
+      })
+    )
+
+    res.json({
+      success: true,
+      event,
+      registrations: registrationsWithQR,
+      totalRegistrations: registrationsWithQR.length
+    })
+  } catch (error) {
+    console.error('Error fetching event registrations:', error)
+    res.status(500).json({ success: false, message: 'Server error' })
+  }
+})
+
+// @route   POST /api/admin/scan-qr
+// @desc    Scan QR code to verify event registration (for admin's college events)
+// @access  Admin
+router.post('/scan-qr', [
+  body('qrData').isString().withMessage('QR data is required')
+], auth, async (req: Request, res: Response) => {
+  try {
+    const errors = validationResult(req)
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Validation failed', 
+        errors: errors.array() 
+      })
+    }
+
+    const { qrData } = req.body
+    const adminId = req.user.id
+    
+    // Get admin details
+    const admin = await AdminService.findById(adminId)
+    if (!admin) {
+      return res.status(404).json({
+        success: false,
+        message: 'Admin not found'
+      })
+    }
+    
+    try {
+      const parsedData = JSON.parse(qrData)
+      const { eventId, userId, registrationId, eventTitle, userName } = parsedData
+
+      // Get event details
+      const event = await EventService.findById(eventId)
+      // Get user details
+      const user = await UserService.findById(userId)
+      // Try to get registration
+      const registration = await EventService.getRegistrationById(registrationId)
+
+      // For regular admins, check if event belongs to their college
+      if (event && admin.role === 'admin' && event.targetCollege !== admin.assignedCollege) {
+        return res.status(403).json({
+          success: false,
+          message: 'Access denied. You can only scan QR codes for events in your assigned college.'
+        })
+      }
+
+      if (!event && !user) {
+        return res.status(404).json({
+          success: false,
+          message: 'Event and user not found'
+        })
+      }
+      if (!event) {
+        return res.status(404).json({
+          success: false,
+          message: 'Event not found',
+          data: user ? { user } : undefined
+        })
+      }
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          message: 'User not found',
+          data: event ? { event } : undefined
+        })
+      }
+
+      if (!registration) {
+        // Return event and user details, but indicate not registered
+        return res.json({
+          success: true,
+          message: 'User is not registered for this event',
+          status: 'not_registered',
+          data: {
+            event: {
+              id: event.id,
+              title: event.title,
+              date: event.date,
+              time: event.time,
+              location: event.location
+            },
+            user: {
+              id: user.id,
+              fullName: user.fullName,
+              email: user.email,
+              memberId: user.memberId,
+              college: user.college
+            }
+          }
+        })
+      }
+
+      // If registration exists, return as before
+      res.json({
+        success: true,
+        message: 'QR code verified successfully',
+        status: 'registered',
+        data: {
+          event: {
+            id: event.id,
+            title: event.title,
+            date: event.date,
+            time: event.time,
+            location: event.location
+          },
+          user: {
+            id: user.id,
+            fullName: user.fullName,
+            email: user.email,
+            memberId: user.memberId,
+            college: user.college
+          },
+          registration: {
+            id: registration.id,
+            status: registration.status,
+            registeredAt: registration.registeredAt
+          }
+        }
+      })
+    } catch (parseError) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid QR code data'
+      })
+    }
+  } catch (error) {
+    console.error('Error scanning QR code:', error)
     res.status(500).json({ success: false, message: 'Server error' })
   }
 })

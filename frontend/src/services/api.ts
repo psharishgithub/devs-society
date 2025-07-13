@@ -25,6 +25,21 @@ api.interceptors.request.use(
   }
 )
 
+// QR Code API
+export const qrCodeAPI = {
+  getMyEventQR: async (eventId: string): Promise<{
+    success: boolean
+    qrCode: {
+      url: string
+      checkInCode: string
+      eventId: string
+      registrationId: string
+    }
+  }> => {
+    const response = await api.get(`/qr-code/event/${eventId}/my-qr`)
+    return response.data
+  },
+}
 // Add response interceptor to handle errors
 api.interceptors.response.use(
   (response) => response,
@@ -69,6 +84,20 @@ export interface Event {
   waitlistCount?: number
   isRegistered?: boolean
   registrationStatus?: 'registered' | 'waitlisted' | 'cancelled'
+  isPaid?: boolean
+  price?: number
+  adminPricing?: Array<{
+    adminType: string
+    amount: number
+    adminId?: string
+  }>
+  priceInfo?: {
+    isPaid: boolean
+    price: number
+    adminName?: string
+    collegeName?: string
+    batchYear?: string
+  }
 }
 
 export interface UserStats {
@@ -172,9 +201,19 @@ export const eventsAPI = {
     return response.data
   },
 
+  getEventsWithPricing: async (): Promise<{ success: boolean; events: Event[]; userInfo?: any }> => {
+    const response = await api.get('/events/with-pricing')
+    return response.data
+  },
+
   getUpcomingEvents: async (): Promise<{ success: boolean; events: Event[] }> => {
     const response = await api.get('/events/upcoming')
     return response.data
+  },
+
+  getAdminsForEvents: async (): Promise<any> => {
+    const response = await api.get('/events/admins-for-events');
+    return response.data;
   },
 
   getEvent: async (id: string): Promise<{ success: boolean; event: Event }> => {
@@ -192,10 +231,7 @@ export const eventsAPI = {
     return response.data
   },
 
-  unregisterFromEvent: async (eventId: string): Promise<{ success: boolean; message: string }> => {
-    const response = await api.delete(`/events/${eventId}/register`)
-    return response.data
-  },
+
 
   checkRegistrationStatus: async (eventId: string): Promise<{ success: boolean; isRegistered: boolean; status?: string }> => {
     const response = await api.get(`/events/${eventId}/registration-status`)

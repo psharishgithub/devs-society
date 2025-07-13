@@ -1,13 +1,21 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { Button } from '../components/ui/button'
 import { Input } from '../components/ui/input'
 import { ParticlesComponent } from '../components/particles'
-import { Code, Calendar, MapPin, CheckCircle, Clock, LogOut, Users, Star, ExternalLink, ArrowLeft, Search, Filter, Plus, RefreshCw, AlertCircle, UserCheck, UserX, Calendar as CalendarIcon } from 'lucide-react'
+import { Code, Calendar, MapPin, CheckCircle, Clock, LogOut, Users, Star, ExternalLink, ArrowLeft, Search, Filter, Plus, RefreshCw, AlertCircle, UserCheck, UserX, Calendar as CalendarIcon, QrCode, FileText, CreditCard } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
-import { eventsAPI } from '../services/api'
+import { eventsAPI, qrCodeAPI } from '../services/api'
+import { eventFormAPI } from '../services/eventFormApi'
+import EventFormViewer from '../components/EventFormViewer'
 import type { Event } from '../services/api'
+
+declare global {
+  interface Window {
+    Razorpay: any
+  }
+}
 
 interface EventWithRegistration extends Event {
   isRegistered?: boolean
@@ -16,6 +24,7 @@ interface EventWithRegistration extends Event {
 
 export function Events() {
   const { user, logout } = useAuth()
+  const navigate = useNavigate()
   const [events, setEvents] = useState<EventWithRegistration[]>([])
   const [filteredEvents, setFilteredEvents] = useState<EventWithRegistration[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -24,6 +33,19 @@ export function Events() {
   const [filter, setFilter] = useState('all') // all, upcoming, past, registered
   const [registeringEventId, setRegisteringEventId] = useState<string | null>(null)
   const [error, setError] = useState('')
+  const [showFormViewer, setShowFormViewer] = useState(false)
+  const [selectedEventForForm, setSelectedEventForForm] = useState<Event | null>(null)
+  const [showQRCode, setShowQRCode] = useState(false)
+  const [selectedEventForQR, setSelectedEventForQR] = useState<Event | null>(null)
+  const [qrCodeData, setQrCodeData] = useState<any>(null)
+  
+  // Payment-related state
+  const [selectedAdminId, setSelectedAdminId] = useState('')
+  const [adminsByCollege, setAdminsByCollege] = useState<any>({})
+  const [paymentProcessing, setPaymentProcessing] = useState(false)
+  const [paymentError, setPaymentError] = useState('')
+  const [showAdminSelection, setShowAdminSelection] = useState(false)
+  const [eventForPayment, setEventForPayment] = useState<Event | null>(null)
 
   useEffect(() => {
     loadEvents()
@@ -37,7 +59,9 @@ export function Events() {
     try {
       setIsLoading(true)
       setError('')
-      const response = await eventsAPI.getEvents()
+      
+      // Use the new endpoint that provides personalized pricing
+      const response = await eventsAPI.getEventsWithPricing()
       
       if (response.success) {
         // Get real registration status for each event
@@ -48,9 +72,9 @@ export function Events() {
               return {
                 ...event,
                 isRegistered: registrationResponse.success ? registrationResponse.isRegistered : false,
-                registrationStatus: registrationResponse.success && registrationResponse.isRegistered 
+                registrationStatus: (registrationResponse.success && registrationResponse.isRegistered 
                   ? registrationResponse.status 
-                  : undefined
+                  : undefined) as 'registered' | 'waitlisted' | 'cancelled' | undefined
               }
             } catch (error) {
               console.error(`Failed to check registration status for event ${event.id}:`, error)
@@ -116,16 +140,81 @@ export function Events() {
   const handleRegister = async (eventId: string) => {
     if (!user) return
 
+    const event = events.find(e => e.id === eventId)
+    if (!event) return
+
+    // For paid events, handle payment directly
+    if (event.priceInfo?.isPaid || event.isPaid) {
+      // For open-to-all events, we need to load admin options first
+      if (event.eventType === 'open-to-all') {
+        try {
+          const adminsResponse = await eventsAPI.getAdminsForEvents();
+          if (adminsResponse.success) {
+            setAdminsByCollege(adminsResponse.adminsByCollege);
+            setEventForPayment(event);
+            setShowAdminSelection(true);
+            return;
+          }
+        } catch (error) {
+          console.error('Error loading admins:', error);
+          setPaymentError('Failed to load admin options. Please try again.');
+          return;
+        }
+      } else {
+        // For non-open-to-all paid events, proceed directly to payment
+        await handlePayment(event, null);
+        return;
+      }
+    }
+
+    // Check if event has a custom form
+    try {
+      const formResponse = await eventFormAPI.getEventForm(eventId)
+      if (formResponse.success && formResponse.form) {
+        setSelectedEventForForm(event)
+        setShowFormViewer(true)
+        return
+      }
+    } catch (error) {
+      console.error('Error checking for event form:', error)
+    }
+
     setRegisteringEventId(eventId)
     try {
       const response = await eventsAPI.registerForEvent(eventId)
       if (response.success) {
-        // Update local state
-        setEvents(prev => prev.map(event => 
-          event.id === eventId 
-            ? { ...event, isRegistered: true, registrationStatus: 'registered' }
-            : event
-        ))
+        // Refresh the specific event data to get updated attendee count
+        try {
+          const eventResponse = await eventsAPI.getEvent(eventId)
+          if (eventResponse.success) {
+            // Update local state with fresh event data
+            setEvents(prev => prev.map(event => 
+              event.id === eventId 
+                ? { 
+                    ...eventResponse.event, 
+                    isRegistered: true, 
+                    registrationStatus: 'registered',
+                    priceInfo: event.priceInfo // Preserve pricing info
+                  }
+                : event
+            ))
+          } else {
+            // Fallback: just update registration status
+            setEvents(prev => prev.map(event => 
+              event.id === eventId 
+                ? { ...event, isRegistered: true, registrationStatus: 'registered' }
+                : event
+            ))
+          }
+        } catch (refreshError) {
+          console.error('Failed to refresh event data:', refreshError)
+          // Fallback: just update registration status
+          setEvents(prev => prev.map(event => 
+            event.id === eventId 
+              ? { ...event, isRegistered: true, registrationStatus: 'registered' }
+              : event
+          ))
+        }
       }
     } catch (error: any) {
       console.error('Registration failed:', error)
@@ -135,25 +224,74 @@ export function Events() {
     }
   }
 
-  const handleUnregister = async (eventId: string) => {
-    if (!user) return
 
-    setRegisteringEventId(eventId)
+
+  const handleFormSubmit = async (responses: Record<string, any>) => {
+    if (!selectedEventForForm) return
+
     try {
-      const response = await eventsAPI.unregisterFromEvent(eventId)
+      // Submit the form
+      await eventFormAPI.submitFormResponse(selectedEventForForm.id, responses)
+      
+      // Register for the event
+      const response = await eventsAPI.registerForEvent(selectedEventForForm.id)
       if (response.success) {
-        // Update local state
-        setEvents(prev => prev.map(event => 
-          event.id === eventId 
-            ? { ...event, isRegistered: false, registrationStatus: undefined }
-            : event
-        ))
+        // Refresh the specific event data to get updated attendee count
+        try {
+          const eventResponse = await eventsAPI.getEvent(selectedEventForForm.id)
+          if (eventResponse.success) {
+            // Update local state with fresh event data
+            setEvents(prev => prev.map(event => 
+              event.id === selectedEventForForm.id 
+                ? { 
+                    ...eventResponse.event, 
+                    isRegistered: true, 
+                    registrationStatus: 'registered',
+                    priceInfo: event.priceInfo // Preserve pricing info
+                  }
+                : event
+            ))
+          } else {
+            // Fallback: just update registration status
+            setEvents(prev => prev.map(event => 
+              event.id === selectedEventForForm.id 
+                ? { ...event, isRegistered: true, registrationStatus: 'registered' }
+                : event
+            ))
+          }
+        } catch (refreshError) {
+          console.error('Failed to refresh event data:', refreshError)
+          // Fallback: just update registration status
+          setEvents(prev => prev.map(event => 
+            event.id === selectedEventForForm.id 
+              ? { ...event, isRegistered: true, registrationStatus: 'registered' }
+              : event
+          ))
+        }
+      }
+      
+      // Close the form viewer
+      setShowFormViewer(false)
+      setSelectedEventForForm(null)
+    } catch (error: any) {
+      console.error('Form submission failed:', error)
+      setError(error.response?.data?.message || 'Form submission failed. Please try again.')
+    }
+  }
+
+  const handleShowQRCode = async (event: Event) => {
+    if (!event.isRegistered) return
+
+    try {
+      const response = await qrCodeAPI.getMyEventQR(event.id)
+      if (response.success) {
+        setQrCodeData(response.qrCode)
+        setSelectedEventForQR(event)
+        setShowQRCode(true)
       }
     } catch (error: any) {
-      console.error('Unregistration failed:', error)
-      setError(error.response?.data?.message || 'Unregistration failed. Please try again.')
-    } finally {
-      setRegisteringEventId(null)
+      console.error('Error getting QR code:', error)
+      setError('Failed to load QR code. Please try again.')
     }
   }
 
@@ -161,6 +299,128 @@ export function Events() {
     if (confirm('Are you sure you want to logout?')) {
       logout()
     }
+  }
+
+  const handlePayment = async (event: Event, adminId?: string | null) => {
+    if (!user) return
+
+    setPaymentProcessing(true)
+    setPaymentError('')
+
+    try {
+      // Create Razorpay order
+      const orderResponse = await fetch(`http://localhost:5050/api/events/${event.id}/razorpay-order`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+        },
+        body: JSON.stringify({
+          adminId: adminId || undefined
+        })
+      })
+
+      const orderData = await orderResponse.json()
+      if (!orderData.success) {
+        throw new Error(orderData.message || 'Failed to create payment order')
+      }
+
+      // Initialize Razorpay
+      const options = {
+        key: 'rzp_test_RVKFS8WX756Anx',
+        amount: orderData.order.amount,
+        currency: orderData.order.currency,
+        name: event.title,
+        description: `Registration for ${event.title}`,
+        order_id: orderData.order.id,
+        handler: async function (response: any) {
+          try {
+            // Verify payment
+            const verifyResponse = await fetch(`http://localhost:5050/api/events/${event.id}/verify-payment`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+              },
+              body: JSON.stringify({
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_signature: response.razorpay_signature,
+                adminId: adminId || undefined
+              })
+            })
+
+            const verifyData = await verifyResponse.json()
+            if (verifyData.success) {
+              // Refresh the specific event data to get updated attendee count
+              try {
+                const eventResponse = await eventsAPI.getEvent(event.id)
+                if (eventResponse.success) {
+                  // Update local state with fresh event data
+                  setEvents(prev => prev.map(e => 
+                    e.id === event.id 
+                      ? { 
+                          ...eventResponse.event, 
+                          isRegistered: true, 
+                          registrationStatus: 'registered',
+                          priceInfo: e.priceInfo // Preserve pricing info
+                        }
+                      : e
+                  ))
+                } else {
+                  // Fallback: just update registration status
+                  setEvents(prev => prev.map(e => 
+                    e.id === event.id 
+                      ? { ...e, isRegistered: true, registrationStatus: 'registered' }
+                      : e
+                  ))
+                }
+              } catch (refreshError) {
+                console.error('Failed to refresh event data:', refreshError)
+                // Fallback: just update registration status
+                setEvents(prev => prev.map(e => 
+                  e.id === event.id 
+                    ? { ...e, isRegistered: true, registrationStatus: 'registered' }
+                    : e
+                ))
+              }
+              setShowAdminSelection(false)
+              setEventForPayment(null)
+              setSelectedAdminId('')
+              // Show success message
+              alert('Payment successful! Registration confirmed. Check your email for details.')
+            } else {
+              setPaymentError('Payment verification failed. Please contact support.')
+            }
+          } catch (error) {
+            console.error('Payment verification error:', error)
+            setPaymentError('Payment verification failed. Please contact support.')
+          }
+          setPaymentProcessing(false)
+        },
+        prefill: {
+          name: user.fullName,
+          email: user.email
+        },
+        theme: { color: '#f97316' }
+      }
+
+      const rzp = new window.Razorpay(options)
+      rzp.open()
+    } catch (error: any) {
+      console.error('Payment error:', error)
+      setPaymentError(error.message || 'Payment failed. Please try again.')
+      setPaymentProcessing(false)
+    }
+  }
+
+  const handleAdminSelection = async () => {
+    if (!eventForPayment || !selectedAdminId) {
+      setPaymentError('Please select an admin')
+      return
+    }
+
+    await handlePayment(eventForPayment, selectedAdminId)
   }
 
   const getStatusIcon = (status?: string) => {
@@ -495,6 +755,31 @@ export function Events() {
                               </span>
                             </div>
 
+                            <div className="flex items-center gap-2">
+                              {event.priceInfo?.isPaid ? (
+                                <div className="flex flex-col gap-1">
+                                  <div className="flex items-center gap-1">
+                                    <span className="text-orange-400 font-medium">₹{event.priceInfo.price}</span>
+                                    <span className="text-orange-400 text-xs">(Paid Event)</span>
+                                  </div>
+                                  {event.priceInfo.adminName && (
+                                    <div className="text-xs text-gray-400">
+                                      Admin: {event.priceInfo.adminName} (Batch {event.priceInfo.batchYear})
+                                    </div>
+                                  )}
+                                </div>
+                              ) : event.isPaid ? (
+                                <div className="flex items-center gap-1">
+                                  <span className="text-orange-400 font-medium">₹{event.price || 0}</span>
+                                  <span className="text-orange-400 text-xs">(Paid Event)</span>
+                                </div>
+                              ) : (
+                                <div className="flex items-center gap-1">
+                                  <span className="text-green-400 font-medium">Free</span>
+                                </div>
+                              )}
+                            </div>
+
                             {event.registrationStatus && (
                               <div className="flex items-center gap-2">
                                 {getStatusIcon(event.registrationStatus)}
@@ -525,22 +810,20 @@ export function Events() {
                               ) : (
                                 <Plus className="h-4 w-4 mr-2 group-hover:scale-110 transition-transform" />
                               )}
-                              {registeringEventId === event.id ? 'Registering...' : 'Register'}
+                              {registeringEventId === event.id ? 'Registering...' : (event.priceInfo?.isPaid || event.isPaid) ? 'Pay & Register' : 'Register'}
                             </Button>
                           ) : event.isRegistered && !isEventPast(event.date) ? (
-                            <Button 
-                              variant="outline" 
-                              onClick={() => handleUnregister(event.id)}
-                              disabled={registeringEventId === event.id}
-                              className="border-red-500/50 text-red-400 hover:bg-red-500/10"
-                            >
-                              {registeringEventId === event.id ? (
-                                <div className="w-4 h-4 border-2 border-red-400/30 border-t-red-400 rounded-full animate-spin mr-2"></div>
-                              ) : (
-                                <UserX className="h-4 w-4 mr-2" />
-                              )}
-                              {registeringEventId === event.id ? 'Unregistering...' : 'Unregister'}
-                            </Button>
+                            <>
+                              <Button 
+                                variant="cyan" 
+                                onClick={() => handleShowQRCode(event)}
+                                className="group"
+                              >
+                                <QrCode className="h-4 w-4 mr-2 group-hover:scale-110 transition-transform" />
+                                My QR Code
+                              </Button>
+
+                            </>
                           ) : null}
 
                           <Button 
@@ -561,6 +844,245 @@ export function Events() {
           </div>
         )}
       </div>
+
+      {/* Event Form Viewer */}
+      {showFormViewer && selectedEventForForm && (
+        <EventFormViewer
+          eventId={selectedEventForForm.id}
+          eventTitle={selectedEventForForm.title}
+          onSubmit={handleFormSubmit}
+          onClose={() => {
+            setShowFormViewer(false)
+            setSelectedEventForForm(null)
+          }}
+        />
+      )}
+
+      {/* QR Code Modal */}
+      {showQRCode && selectedEventForQR && qrCodeData && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4"
+        >
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.9, opacity: 0 }}
+            className="bg-gray-900 rounded-2xl max-w-md w-full"
+          >
+            <div className="p-6 text-center">
+              <div className="bg-white p-4 rounded-xl mb-4 inline-block">
+                <img 
+                  src={qrCodeData.url} 
+                  alt="Event QR Code" 
+                  className="w-48 h-48"
+                />
+              </div>
+              
+              <div className="space-y-2 mb-6">
+                <p className="text-cyan-300 font-medium">Check-in Code</p>
+                <p className="text-white font-mono text-lg tracking-wider bg-gray-800 py-2 px-4 rounded-lg">
+                  {qrCodeData.checkInCode}
+                </p>
+                <p className="text-gray-400 text-sm">
+                  Show this QR code or provide the code above for event check-in
+                </p>
+              </div>
+
+              <Button 
+                variant="outline" 
+                onClick={() => {
+                  setShowQRCode(false)
+                  setSelectedEventForQR(null)
+                  setQrCodeData(null)
+                }}
+                className="w-full"
+              >
+                Close
+              </Button>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+
+      {/* Admin Selection Modal */}
+      {showAdminSelection && eventForPayment && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4"
+        >
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.9, opacity: 0 }}
+            className="bg-gray-900 rounded-2xl max-w-2xl w-full max-h-[80vh] overflow-y-auto"
+          >
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-bold text-white">Select Admin for {eventForPayment.title}</h2>
+                <Button 
+                  variant="ghost" 
+                  onClick={() => {
+                    setShowAdminSelection(false)
+                    setEventForPayment(null)
+                    setSelectedAdminId('')
+                    setPaymentError('')
+                  }}
+                  className="text-gray-400 hover:text-white"
+                >
+                  ✕
+                </Button>
+              </div>
+
+              {paymentError && (
+                <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4 text-red-400 mb-4">
+                  {paymentError}
+                </div>
+              )}
+
+              <div className="space-y-4">
+                {Object.entries(adminsByCollege).map(([collegeId, collegeData]: [string, any]) => {
+                  console.log('Processing college in modal:', collegeId, collegeData);
+                  console.log('User data in modal:', user);
+                  console.log('User collegeRef:', (user as any)?.collegeRef);
+                  console.log('User college:', user?.college);
+                  
+                  // Filter admins for this user's college and batch year
+                  const matchingAdmins = (collegeData as any).admins.filter(
+                    (admin: any) => {
+                      const batchMatch = Number(admin.batchYear) === Number(user?.batchYear);
+                      const collegeMatch = ((collegeData as any).college?.id && (user as any)?.collegeRef && (collegeData as any).college.id === (user as any)?.collegeRef) ||
+                                          ((collegeData as any).college?.name && user?.college && (collegeData as any).college.name === user?.college);
+                      
+                      console.log(`Admin: ${admin.fullName} Batch: ${admin.batchYear} User batch: ${user?.batchYear} Batch match: ${batchMatch}`);
+                      console.log(`College ID match: ${(collegeData as any).college?.id} User collegeRef: ${(user as any)?.collegeRef} College match: ${collegeMatch}`);
+                      console.log(`College name match: ${(collegeData as any).college?.name} User college: ${user?.college} Name match: ${(collegeData as any).college?.name === user?.college}`);
+                      
+                      return batchMatch && collegeMatch;
+                    }
+                  );
+
+                  console.log('Matching admins for college', collegeId, ':', matchingAdmins);
+
+                  if (matchingAdmins.length === 0) return null;
+
+                  return (
+                    <div key={collegeId} className="border border-gray-700 rounded-lg p-4">
+                      <h3 className="font-medium text-gray-300 mb-3">
+                        {(collegeData as any).college?.name || 'Unknown College'}
+                      </h3>
+                      <div className="space-y-2">
+                        {matchingAdmins.map((admin: any) => {
+                          const adminPricing = eventForPayment.adminPricing?.find(p => p.adminId === admin.id)
+                          return (
+                            <label key={admin.id} className="flex items-center gap-3 p-3 rounded hover:bg-gray-800 cursor-pointer border border-gray-700">
+                              <input
+                                type="radio"
+                                name="adminId"
+                                value={admin.id}
+                                checked={selectedAdminId === admin.id}
+                                onChange={(e) => setSelectedAdminId(e.target.value)}
+                                className="text-orange-500"
+                              />
+                              <div className="flex-1">
+                                <p className="font-medium text-white">{admin.fullName}</p>
+                                <p className="text-sm text-gray-400">Batch: {admin.batchYear}</p>
+                                <p className="text-sm text-orange-400 font-medium">₹{adminPricing?.amount || 0}</p>
+                              </div>
+                            </label>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+
+              {Object.keys(adminsByCollege).length === 0 && (
+                <div className="text-center py-8">
+                  <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
+                  <p className="text-gray-400">No admin options available for your college and batch year.</p>
+                  <p className="text-gray-400 text-sm mt-2">Please contact support for assistance.</p>
+                </div>
+              )}
+
+              {/* Debug section - show all admins if no matching ones found */}
+              {Object.keys(adminsByCollege).length > 0 && Object.entries(adminsByCollege).every(([collegeId, collegeData]: [string, any]) => {
+                const matchingAdmins = (collegeData as any).admins.filter(
+                  (admin: any) => {
+                    const batchMatch = Number(admin.batchYear) === Number(user?.batchYear);
+                    const collegeMatch = ((collegeData as any).college?.id && (user as any)?.collegeRef && (collegeData as any).college.id === (user as any)?.collegeRef) ||
+                                        ((collegeData as any).college?.name && user?.college && (collegeData as any).college.name === user?.college);
+                    return batchMatch && collegeMatch;
+                  }
+                );
+                return matchingAdmins.length === 0;
+              }) && (
+                <div className="border border-yellow-500/30 rounded-lg p-4 bg-yellow-500/10">
+                  <h3 className="text-yellow-400 font-medium mb-3">Debug: All Available Admins</h3>
+                  <p className="text-yellow-300 text-sm mb-4">No admins matched your criteria. Here are all available admins:</p>
+                  {Object.entries(adminsByCollege).map(([collegeId, collegeData]: [string, any]) => (
+                    <div key={collegeId} className="mb-4">
+                      <h4 className="text-white font-medium mb-2">
+                        {(collegeData as any).college?.name || 'Unknown College'} (ID: {(collegeData as any).college?.id})
+                      </h4>
+                      <div className="space-y-1">
+                        {(collegeData as any).admins.map((admin: any) => (
+                          <div key={admin.id} className="text-sm text-gray-300">
+                            • {admin.fullName} (Batch: {admin.batchYear})
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                  <div className="text-yellow-300 text-sm mt-3">
+                    <p><strong>Your data:</strong></p>
+                    <p>College: {(user as any)?.collegeRef || user?.college}</p>
+                    <p>Batch Year: {user?.batchYear}</p>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex gap-3 mt-6">
+                <Button 
+                  variant="outline" 
+                  onClick={() => {
+                    setShowAdminSelection(false)
+                    setEventForPayment(null)
+                    setSelectedAdminId('')
+                    setPaymentError('')
+                  }}
+                  className="flex-1"
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  variant="gradient" 
+                  onClick={handleAdminSelection}
+                  disabled={!selectedAdminId || paymentProcessing}
+                  className="flex-1"
+                >
+                  {paymentProcessing ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2"></div>
+                      Processing...
+                    </>
+                  ) : (
+                    <>
+                      <CreditCard className="h-4 w-4 mr-2" />
+                      Pay & Register
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
     </div>
   )
-} 
+}

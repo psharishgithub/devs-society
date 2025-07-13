@@ -228,7 +228,27 @@ export function Register() {
       if (error.response?.status === 409) {
         setError('An account with this email already exists. Please use a different email or login.')
       } else if (error.response?.status === 400) {
-        setError(error.response?.data?.message || 'Please check your information and try again.')
+        const errorData = error.response?.data
+        const errorMessage = errorData?.message || 'Please check your information and try again.'
+        
+        // Handle specific field errors
+        if (errorData?.field === 'batchYear') {
+          setValidationErrors(prev => ({
+            ...prev,
+            batchYear: errorMessage
+          }))
+          // Go back to step 2 to show the error
+          setCurrentStep(2)
+        } else if (errorData?.field === 'college') {
+          setValidationErrors(prev => ({
+            ...prev,
+            college: errorMessage
+          }))
+          // Go back to step 2 to show the error
+          setCurrentStep(2)
+        } else {
+          setError(errorMessage)
+        }
       } else {
         setError(error.response?.data?.message || 'Registration failed. Please try again.')
       }
@@ -547,7 +567,10 @@ export function Register() {
                         </select>
                       </div>
                       {validationErrors.college && (
-                        <p className="text-red-400 text-xs mt-1">{validationErrors.college}</p>
+                        <p className="text-red-400 text-xs mt-1 flex items-center gap-1">
+                          <AlertCircle className="h-3 w-3" />
+                          {validationErrors.college}
+                        </p>
                       )}
                     </div>
                     
@@ -585,10 +608,14 @@ export function Register() {
                         </select>
                       </div>
                       {validationErrors.batchYear && (
-                        <p className="text-red-400 text-xs mt-1">{validationErrors.batchYear}</p>
+                        <p className="text-red-400 text-xs mt-1 flex items-center gap-1">
+                          <AlertCircle className="h-3 w-3" />
+                          {validationErrors.batchYear}
+                        </p>
                       )}
                       {formData.college && !colleges.find(college => college.value === formData.college)?.batchYears.length && (
-                        <p className="text-yellow-400 text-xs mt-1">
+                        <p className="text-yellow-400 text-xs mt-1 flex items-center gap-1">
+                          <AlertCircle className="h-3 w-3" />
                           This college doesn't have any active admins. Please contact the super admin.
                         </p>
                       )}

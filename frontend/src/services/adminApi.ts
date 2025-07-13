@@ -175,7 +175,18 @@ export const adminApiService = {
   getDashboardStats: async (): Promise<{ success: boolean; stats: AdminDashboardStats }> => {
     const response = await adminApi.get('/dashboard')
     return response.data
-  }
+  },
+
+  // QR Code Scanning
+  scanQRCode: async (qrData: string) => {
+    const response = await adminApi.post('/scan-qr', { qrData })
+    return response.data
+  },
+
+  getEventRegistrations: async (eventId: string) => {
+    const response = await adminApi.get(`/events/${eventId}/registrations`)
+    return response.data
+  },
 }
 
 // SuperAdmin API functions
@@ -220,6 +231,11 @@ export const superAdminApiService = {
   // Admin Management
   getAdmins: async () => {
     const response = await superAdminApi.get('/admins')
+    return response.data
+  },
+
+  getAdminsForEvents: async () => {
+    const response = await superAdminApi.get('/admins-for-events')
     return response.data
   },
 
@@ -285,8 +301,24 @@ export const superAdminApiService = {
     return response.data
   },
 
+  updateEvent: async (id: string, eventData: any) => {
+    const response = await superAdminApi.put(`/events/${id}`, eventData)
+    return response.data
+  },
+
   deleteEvent: async (id: string) => {
     const response = await superAdminApi.delete(`/events/${id}`)
+    return response.data
+  },
+
+  // Event Registrations and QR Codes
+  getEventRegistrations: async (eventId: string) => {
+    const response = await superAdminApi.get(`/events/${eventId}/registrations`)
+    return response.data
+  },
+
+  scanQRCode: async (qrData: string) => {
+    const response = await superAdminApi.post('/scan-qr', { qrData })
     return response.data
   },
 

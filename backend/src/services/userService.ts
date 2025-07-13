@@ -95,6 +95,26 @@ class UserService {
     }
   }
 
+  // Get available batch years for a college
+  async getAvailableBatchYears(collegeId: string): Promise<Array<{ year: string; adminName: string }>> {
+    try {
+      // Import AdminService here to avoid circular dependency
+      const AdminService = require('./adminService').default
+      
+      // Get all active admins for the college
+      const admins = await AdminService.getAdminsByCollege(collegeId, true)
+      
+      // Return available batch years with admin names
+      return admins.map((admin: any) => ({
+        year: admin.batchYear?.toString() || '',
+        adminName: admin.fullName
+      })).filter((batch: { year: string; adminName: string }) => batch.year)
+    } catch (error) {
+      console.error('Error getting available batch years:', error)
+      return []
+    }
+  }
+
   // Create a new user with batch year validation
   async createUser(userData: CreateUserData): Promise<IUser> {
     try {

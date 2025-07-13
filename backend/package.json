@@ -4,11 +4,16 @@
   "description": "Backend API for Devs Society Portal",
   "main": "dist/index.js",
   "scripts": {
+    "dev": "ts-node src/index.ts",
+    "dev:watch": "npx nodemon --config nodemon.json",
+    "dev:simple": "ts-node --transpile-only src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
-    "dev": "nodemon src/index.ts",
-    "migrate": "ts-node src/scripts/migrateToSupabase.ts",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "db:setup": "ts-node src/scripts/migrateToSupabase.ts",
+    "db:fix": "ts-node src/scripts/fixDatabaseIssues.ts",
+    "db:verify": "ts-node src/scripts/verifyDatabaseFix.ts",
+    "db:temp": "ts-node src/scripts/temporaryWorkaround.ts",
+    "test": "jest"
   },
   "keywords": [
     "devs",
@@ -20,15 +25,21 @@
   "license": "ISC",
   "dependencies": {
     "@supabase/supabase-js": "^2.50.4",
+    "@types/qrcode": "^1.5.5",
+    "axios": "^1.10.0",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
-    "express": "4.21.2",
+    "express": "^4.21.2",
     "express-rate-limit": "^7.4.1",
     "express-validator": "^7.2.1",
     "helmet": "^8.0.0",
     "jsonwebtoken": "^9.0.2",
-    "multer": "^1.4.5-lts.1"
+    "mongoose": "^8.16.3",
+    "multer": "^1.4.5-lts.1",
+    "nodemailer": "^7.0.5",
+    "qrcode": "^1.5.4",
+    "razorpay": "^2.9.6"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
@@ -39,6 +50,7 @@
     "@types/node": "^22.11.7",
     "nodemon": "^3.1.10",
     "ts-node": "^10.9.2",
-    "typescript": "^5.7.3"
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.8.3"
   }
 }

@@ -258,6 +258,22 @@ class CollegeService {
         throw new Error('Cannot delete college with active tenure head. Please end tenure first.')
       }
 
+      // Check if college has any active tenure heads in the tenure_heads table
+      const { data: activeTenures, error: tenureError } = await this.supabase
+        .from('college_tenure_heads')
+        .select('*')
+        .eq('college_id', id)
+        .eq('is_active', true)
+
+      if (tenureError) {
+        handleSupabaseError(tenureError, 'deleteCollege - check tenure heads')
+      }
+
+      if (activeTenures && activeTenures.length > 0) {
+        throw new Error(`Cannot delete college with active tenure heads. Found ${activeTenures.length} active tenure(s).`)
+      }
+
+      // Now delete the college
       const { error } = await this.supabase
         .from('colleges')
         .update({ is_active: false })

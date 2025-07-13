@@ -19,9 +19,17 @@ export interface IEvent {
   requirements: string[]
   prizes: string[]
   registrationDeadline: string
+  isPaid: boolean
+  price: number
+  adminPricing?: Array<{
+    adminType: string
+    amount: number
+    adminId?: string
+  }>
   isActive: boolean
   createdAt: string
   updatedAt: string
+  attendees?: any[] // Array of attendee objects or just count
 }
 
 export interface IEventRegistration {
@@ -32,6 +40,12 @@ export interface IEventRegistration {
   status: 'confirmed' | 'waitlisted' | 'cancelled'
   createdAt: string
   updatedAt: string
+  // Payment fields
+  paymentVerified?: boolean
+  paymentId?: string
+  paymentAmount?: number
+  paymentCurrency?: string
+  paymentTimestamp?: string
 }
 
 export interface CreateEventData {
@@ -52,6 +66,13 @@ export interface CreateEventData {
   requirements?: string[]
   prizes?: string[]
   registrationDeadline: string
+  isPaid?: boolean
+  price?: number
+  adminPricing?: Array<{
+    adminType: string
+    amount: number
+    adminId?: string
+  }>
 }
 
 export interface UpdateEventData {
@@ -72,6 +93,13 @@ export interface UpdateEventData {
   requirements?: string[]
   prizes?: string[]
   registrationDeadline?: string
+  isPaid?: boolean
+  price?: number
+  adminPricing?: Array<{
+    adminType: string
+    amount: number
+    adminId?: string
+  }>
   isActive?: boolean
 }
 
@@ -81,11 +109,17 @@ class EventService {
   // Create a new event
   async createEvent(eventData: CreateEventData): Promise<IEvent> {
     try {
+      // Temporary solution: Store paid event info in description until database is fixed
+      let description = eventData.description
+      if (eventData.isPaid && eventData.price) {
+        description = `[PAID_EVENT:₹${eventData.price}] ${description}`
+      }
+      
       const { data, error } = await this.supabase
         .from('events')
         .insert({
           title: eventData.title,
-          description: eventData.description,
+          description: description, // Use modified description
           event_date: eventData.date,
           event_time: eventData.time,
           location: eventData.location,
@@ -99,6 +133,9 @@ class EventService {
           requirements: eventData.requirements || [],
           prizes: eventData.prizes || [],
           registration_deadline: eventData.registrationDeadline,
+          is_paid: eventData.isPaid || false,
+          price: eventData.isPaid ? (eventData.price || 0) : 0,
+          admin_pricing: eventData.adminPricing || [],
           is_active: true
         })
         .select()
@@ -132,7 +169,14 @@ class EventService {
         handleSupabaseError(error, 'findById')
       }
 
-      return this.mapDbEventToEvent(data)
+      // Get attendee count
+      const attendeeCount = await this.getConfirmedRegistrationCount(id)
+      
+      const event = this.mapDbEventToEvent(data)
+      return {
+        ...event,
+        attendees: Array(attendeeCount).fill({}) // Create array with attendee count for frontend compatibility
+      }
     } catch (error) {
       console.error('Error finding event by ID:', error)
       throw error
@@ -204,7 +248,19 @@ class EventService {
         handleSupabaseError(error, 'getAllEvents')
       }
 
-      return data?.map(event => this.mapDbEventToEvent(event)) || []
+      // Get attendee count for each event
+      const eventsWithAttendees = await Promise.all(
+        (data || []).map(async (event) => {
+          const attendeeCount = await this.getConfirmedRegistrationCount(event.id)
+          const mappedEvent = this.mapDbEventToEvent(event)
+          return {
+            ...mappedEvent,
+            attendees: Array(attendeeCount).fill({}) // Create array with attendee count for frontend compatibility
+          }
+        })
+      )
+
+      return eventsWithAttendees
     } catch (error) {
       console.error('Error getting all events:', error)
       throw error
@@ -324,15 +380,57 @@ class EventService {
         throw new Error(canRegister.reason)
       }
 
-      const { data, error } = await this.supabase
+      // Check if user already has a registration (including cancelled ones)
+      const { data: existingReg, error: checkError } = await this.supabase
         .from('event_registrations')
-        .insert({
-          event_id: eventId,
-          user_id: userId,
-          status: canRegister.status || 'confirmed'
-        })
-        .select()
+        .select('*')
+        .eq('event_id', eventId)
+        .eq('user_id', userId)
         .single()
+
+      if (checkError && checkError.code !== 'PGRST116') {
+        handleSupabaseError(checkError, 'registerForEvent')
+      }
+
+      let data
+      let error
+
+      if (existingReg) {
+        // If registration exists and is not cancelled, return it
+        if (existingReg.status !== 'cancelled') {
+          return this.mapDbRegistrationToRegistration(existingReg)
+        }
+        
+        // Update cancelled registration to confirmed
+        const { data: updateData, error: updateError } = await this.supabase
+          .from('event_registrations')
+          .update({
+            status: canRegister.status || 'confirmed',
+            registered_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', existingReg.id)
+          .select()
+          .single()
+
+        data = updateData
+        error = updateError
+      } else {
+        // Create new registration
+        const { data: insertData, error: insertError } = await this.supabase
+          .from('event_registrations')
+          .insert({
+            event_id: eventId,
+            user_id: userId,
+            status: canRegister.status || 'confirmed',
+            payment_verified: false // Default to false for new registrations
+          })
+          .select()
+          .single()
+
+        data = insertData
+        error = insertError
+      }
 
       if (error) {
         handleSupabaseError(error, 'registerForEvent')
@@ -345,32 +443,101 @@ class EventService {
     }
   }
 
-  // Unregister user from event
-  async unregisterFromEvent(eventId: string, userId: string): Promise<boolean> {
+  // Register user for event with payment verification
+  async registerForEventWithPayment(
+    eventId: string, 
+    userId: string, 
+    paymentInfo: {
+      paymentId: string
+      amount: number
+      currency: string
+      verified: boolean
+    }
+  ): Promise<IEventRegistration> {
     try {
-      const { error } = await this.supabase
-        .from('event_registrations')
-        .update({ status: 'cancelled' })
-        .eq('event_id', eventId)
-        .eq('user_id', userId)
-
-      if (error) {
-        handleSupabaseError(error, 'unregisterFromEvent')
+      // Check if user can register
+      const canRegister = await this.canUserRegister(eventId, userId)
+      if (!canRegister.canRegister) {
+        throw new Error(canRegister.reason)
       }
 
-      return true
+      // Check if registration already exists
+      const { data: existingReg, error: checkError } = await this.supabase
+        .from('event_registrations')
+        .select('*')
+        .eq('event_id', eventId)
+        .eq('user_id', userId)
+        .single()
+
+      if (checkError && checkError.code !== 'PGRST116') {
+        handleSupabaseError(checkError, 'registerForEventWithPayment')
+      }
+
+      let data
+      let error
+
+      if (existingReg) {
+        // Update existing registration with payment info
+        const { data: updateData, error: updateError } = await this.supabase
+          .from('event_registrations')
+          .update({ 
+            status: canRegister.status || 'confirmed',
+            payment_verified: paymentInfo.verified,
+            payment_id: paymentInfo.paymentId,
+            payment_amount: paymentInfo.amount,
+            payment_currency: paymentInfo.currency,
+            payment_timestamp: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', existingReg.id)
+          .select()
+          .single()
+
+        data = updateData
+        error = updateError
+      } else {
+        // Create new registration with payment info
+        const { data: insertData, error: insertError } = await this.supabase
+          .from('event_registrations')
+          .insert({
+            event_id: eventId,
+            user_id: userId,
+            status: canRegister.status || 'confirmed',
+            payment_verified: paymentInfo.verified,
+            payment_id: paymentInfo.paymentId,
+            payment_amount: paymentInfo.amount,
+            payment_currency: paymentInfo.currency,
+            payment_timestamp: new Date().toISOString()
+          })
+          .select()
+          .single()
+
+        data = insertData
+        error = insertError
+      }
+
+      if (error) {
+        handleSupabaseError(error, 'registerForEventWithPayment')
+      }
+
+      return this.mapDbRegistrationToRegistration(data)
     } catch (error) {
-      console.error('Error unregistering from event:', error)
+      console.error('Error registering for event with payment:', error)
       throw error
     }
   }
 
+
+
   // Get event registrations
-  async getEventRegistrations(eventId: string, status?: 'confirmed' | 'waitlisted' | 'cancelled'): Promise<IEventRegistration[]> {
+  async getEventRegistrations(eventId: string, status?: 'confirmed' | 'waitlisted' | 'cancelled'): Promise<(IEventRegistration & { userName?: string })[]> {
     try {
       let query = this.supabase
         .from('event_registrations')
-        .select('*')
+        .select(`
+          *,
+          users!inner(full_name, email, member_id)
+        `)
         .eq('event_id', eventId)
 
       if (status) {
@@ -385,7 +552,10 @@ class EventService {
         handleSupabaseError(error, 'getEventRegistrations')
       }
 
-      return data?.map(reg => this.mapDbRegistrationToRegistration(reg)) || []
+      return data?.map(reg => ({
+        ...this.mapDbRegistrationToRegistration(reg),
+        userName: reg.users?.full_name || 'Unknown User'
+      })) || []
     } catch (error) {
       console.error('Error getting event registrations:', error)
       throw error
@@ -415,6 +585,29 @@ class EventService {
       return data?.map(reg => this.mapDbRegistrationToRegistration(reg)) || []
     } catch (error) {
       console.error('Error getting user registrations:', error)
+      throw error
+    }
+  }
+
+  // Get registration by ID
+  async getRegistrationById(registrationId: string): Promise<IEventRegistration | null> {
+    try {
+      const { data, error } = await this.supabase
+        .from('event_registrations')
+        .select('*')
+        .eq('id', registrationId)
+        .single()
+
+      if (error) {
+        if (error.code === 'PGRST116') {
+          return null
+        }
+        handleSupabaseError(error, 'getRegistrationById')
+      }
+
+      return this.mapDbRegistrationToRegistration(data)
+    } catch (error) {
+      console.error('Error getting registration by ID:', error)
       throw error
     }
   }
@@ -453,6 +646,17 @@ class EventService {
       }
 
       if (existingReg) {
+        // If user is already registered and confirmed, they can't register again
+        if (existingReg.status === 'confirmed') {
+          return { canRegister: false, reason: 'Already registered' }
+        }
+        // If user is waitlisted, they can be moved to confirmed if spots are available
+        if (existingReg.status === 'waitlisted') {
+          const confirmedCount = await this.getConfirmedRegistrationCount(eventId)
+          if (confirmedCount < event.maxAttendees) {
+            return { canRegister: true, status: 'confirmed' }
+          }
+        }
         return { canRegister: false, reason: 'Already registered' }
       }
 
@@ -532,10 +736,34 @@ class EventService {
 
   // Helper method to map database event to IEvent interface
   private mapDbEventToEvent(dbEvent: Database['public']['Tables']['events']['Row']): IEvent {
+    // Check for temporary paid event format: [PAID_EVENT:₹price]
+    const tempPaidMatch = dbEvent.description?.match(/\[PAID_EVENT:₹(\d+)\]/)
+    const isTempPaidEvent = !!tempPaidMatch
+    const tempPrice = tempPaidMatch ? parseInt(tempPaidMatch[1]) : 0
+    
+    // Remove the temporary format from description for display
+    const cleanDescription = dbEvent.description?.replace(/\[PAID_EVENT:₹\d+\]\s*/, '') || dbEvent.description
+    
+    // Check if the event has pricing information in the title or description
+    const hasPricingInfo = dbEvent.title?.toLowerCase().includes('paid') || 
+                          dbEvent.title?.toLowerCase().includes('₹') ||
+                          dbEvent.title?.toLowerCase().includes('rs') ||
+                          cleanDescription?.toLowerCase().includes('paid') ||
+                          cleanDescription?.toLowerCase().includes('₹') ||
+                          cleanDescription?.toLowerCase().includes('rs')
+    
+    // Extract price from title or description if available
+    const priceMatch = dbEvent.title?.match(/₹(\d+)/) || 
+                      cleanDescription?.match(/₹(\d+)/) ||
+                      dbEvent.title?.match(/rs\.?\s*(\d+)/i) ||
+                      cleanDescription?.match(/rs\.?\s*(\d+)/i)
+    
+    const extractedPrice = priceMatch ? parseInt(priceMatch[1]) : 0
+    
     return {
       id: dbEvent.id,
       title: dbEvent.title,
-      description: dbEvent.description,
+      description: cleanDescription, // Use clean description without temp format
       date: dbEvent.event_date,
       time: dbEvent.event_time,
       location: dbEvent.location,
@@ -551,6 +779,9 @@ class EventService {
       requirements: dbEvent.requirements as string[],
       prizes: dbEvent.prizes as string[],
       registrationDeadline: dbEvent.registration_deadline,
+      isPaid: dbEvent.is_paid || isTempPaidEvent || hasPricingInfo || extractedPrice > 0, // Use database value first
+      price: dbEvent.price || tempPrice || extractedPrice, // Use database value first
+      adminPricing: dbEvent.admin_pricing || [], // Read from database
       isActive: dbEvent.is_active,
       createdAt: dbEvent.created_at,
       updatedAt: dbEvent.updated_at
@@ -566,7 +797,12 @@ class EventService {
       registeredAt: dbReg.registered_at,
       status: dbReg.status,
       createdAt: dbReg.created_at,
-      updatedAt: dbReg.updated_at
+      updatedAt: dbReg.updated_at,
+      paymentVerified: dbReg.payment_verified || undefined,
+      paymentId: dbReg.payment_id || undefined,
+      paymentAmount: dbReg.payment_amount || undefined,
+      paymentCurrency: dbReg.payment_currency || undefined,
+      paymentTimestamp: dbReg.payment_timestamp || undefined
     }
   }
 }

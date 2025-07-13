@@ -4,11 +4,11 @@
 -- Drop the existing constraint
 ALTER TABLE admins DROP CONSTRAINT IF EXISTS admin_college_check;
 
--- Create a new constraint that only requires super-admins to NOT have assigned colleges
--- Regular admins can be created without college assignment initially
+-- Create a new constraint that allows deactivated admins to not have college assignments
+-- Regular active admins must have college assignments, but deactivated ones can be without
 ALTER TABLE admins ADD CONSTRAINT admin_college_check CHECK (
     (role = 'super-admin' AND assigned_college_id IS NULL) OR 
-    (role = 'admin')
+    (role = 'admin' AND (assigned_college_id IS NOT NULL OR is_active = false))
 );
 
 -- Update existing constraint to be more flexible

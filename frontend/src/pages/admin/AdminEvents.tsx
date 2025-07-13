@@ -14,10 +14,15 @@ import {
   Users,
   Clock,
   CheckCircle,
-  XCircle
+  XCircle,
+  QrCode,
+  AlertCircle
 } from 'lucide-react'
 import { eventsAPI } from '../../services/api'
+import { adminApiService } from '../../services/adminApi'
+import QRScanner from '../../components/QRScanner'
 import type { Event } from '../../services/api'
+import { useNavigate } from 'react-router-dom';
 
 export function AdminEvents() {
   const [events, setEvents] = useState<Event[]>([])
@@ -25,6 +30,12 @@ export function AdminEvents() {
   const [isLoading, setIsLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [showCreateForm, setShowCreateForm] = useState(false)
+  const [showQRScanner, setShowQRScanner] = useState(false)
+  const [scannedData, setScannedData] = useState<any>(null)
+  const [scanStatus, setScanStatus] = useState<string | null>(null)
+  const [showRegistrations, setShowRegistrations] = useState(false)
+  const [selectedEventRegistrations, setSelectedEventRegistrations] = useState<any>(null)
+  const [registrationFilter, setRegistrationFilter] = useState<'all' | 'paid' | 'pending'>('all')
   const [newEvent, setNewEvent] = useState({
     title: '',
     description: '',
@@ -32,6 +43,7 @@ export function AdminEvents() {
     location: '',
     maxAttendees: ''
   })
+  const navigate = useNavigate();
 
   useEffect(() => {
     loadEvents()
@@ -103,6 +115,54 @@ export function AdminEvents() {
     return new Date(dateString) > new Date()
   }
 
+  const handleQRScan = async (qrData: string): Promise<'success' | 'invalid' | 'already_checked_in' | 'error'> => {
+    try {
+      const response = await adminApiService.scanQRCode(qrData)
+      if (response.success) {
+        setScannedData(response.data)
+        if (response.data.registration && response.data.registration.status === 'already_checked_in') {
+          setScanStatus('already_checked_in')
+        } else {
+          setScanStatus(response.status) // 'registered' or 'not_registered'
+        }
+        setShowQRScanner(false)
+        // Map backend status to allowed QRScanner return values
+        if (response.data.registration && response.data.registration.status === 'already_checked_in') {
+          return 'already_checked_in'
+        }
+        return response.status === 'registered' ? 'success' : 'invalid'
+      } else {
+        setScannedData(null)
+        setScanStatus('invalid')
+        return 'invalid'
+      }
+    } catch (error: any) {
+      setScannedData(null)
+      setScanStatus('error')
+      return 'error'
+    }
+  }
+
+  const handleViewRegistrations = async (eventId: string) => {
+    try {
+      const response = await adminApiService.getEventRegistrations(eventId)
+      if (response.success) {
+        setSelectedEventRegistrations({ 
+          eventId, 
+          event: response.event,
+          registrations: response.registrations 
+        })
+        setRegistrationFilter('all') // Reset filter
+        setShowRegistrations(true)
+      } else {
+        alert('Failed to load registrations: ' + (response.message || 'Unknown error'))
+      }
+    } catch (error: any) {
+      console.error('Error loading registrations:', error)
+      alert('Failed to load registrations: ' + (error.message || 'Unknown error'))
+    }
+  }
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -124,6 +184,15 @@ export function AdminEvents() {
           <h1 className="text-3xl font-bold font-techie text-gradient mb-2">Event Management</h1>
           <p className="text-gray-400">Create and manage DEVS community events</p>
         </div>
+        <div className="flex gap-2">
+          <Button 
+            variant="gradient" 
+            className="w-fit"
+            onClick={() => setShowQRScanner(true)}
+          >
+            <QrCode className="h-4 w-4" />
+            QR Scanner
+          </Button>
         <Button 
           variant="gradient" 
           className="w-fit"
@@ -132,6 +201,7 @@ export function AdminEvents() {
           <Plus className="h-4 w-4" />
           Create New Event
         </Button>
+        </div>
       </div>
 
       {/* Create Event Form */}
@@ -294,6 +364,24 @@ export function AdminEvents() {
                 <Eye className="h-4 w-4" />
                 View Details
               </Button>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="flex-1"
+                onClick={() => handleViewRegistrations(event.id)}
+              >
+                <Users className="h-4 w-4" />
+                Registrations
+              </Button>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="flex-1"
+                onClick={() => navigate(`/admin/events/${event.id}/attendance`)}
+              >
+                <Calendar className="h-4 w-4" />
+                View Attendance
+              </Button>
               <Button variant="cyan" size="sm" className="flex-1">
                 <Edit className="h-4 w-4" />
                 Edit
@@ -341,6 +429,215 @@ export function AdminEvents() {
           </div>
         </div>
       </div>
+
+      {/* QR Scanner Modal */}
+      <QRScanner
+        isOpen={showQRScanner}
+        onClose={() => setShowQRScanner(false)}
+        onScan={handleQRScan}
+        title="Event Registration Scanner"
+      />
+
+      {/* QR Scan Result Modal */}
+      {scannedData && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-6 max-w-md w-full">
+            <h2 className="text-lg font-bold mb-2">Event & Student Details</h2>
+            <div className="mb-2">
+              <strong>Event:</strong> {scannedData.event?.title} <br />
+              <strong>Date:</strong> {scannedData.event?.date} <br />
+              <strong>Location:</strong> {scannedData.event?.location}
+            </div>
+            <div className="mb-2">
+              <strong>Student:</strong> {scannedData.user?.fullName} <br />
+              <strong>Email:</strong> {scannedData.user?.email} <br />
+              <strong>College:</strong> {scannedData.user?.college}
+            </div>
+            {scanStatus === 'registered' && (
+              <div className="text-green-600 font-semibold mb-2">
+                <CheckCircle className="inline h-5 w-5 mr-1" /> Registered for this event!
+              </div>
+            )}
+            {scanStatus === 'not_registered' && (
+              <div className="text-red-600 font-semibold mb-2">
+                <AlertCircle className="inline h-5 w-5 mr-1" /> Not registered for this event.
+              </div>
+            )}
+            {scanStatus === 'invalid' && (
+              <div className="text-red-600 font-semibold mb-2">
+                <AlertCircle className="inline h-5 w-5 mr-1" /> Invalid QR code.
+              </div>
+            )}
+            {scanStatus === 'error' && (
+              <div className="text-red-600 font-semibold mb-2">
+                <AlertCircle className="inline h-5 w-5 mr-1" /> Error processing QR code.
+              </div>
+            )}
+            {scanStatus === 'already_checked_in' && (
+              <div className="text-yellow-400 font-semibold mb-4 flex items-center gap-2">
+                <AlertCircle className="h-5 w-5" /> Already checked in{scannedData.registration?.checkedInAt ? ` at ${new Date(scannedData.registration.checkedInAt).toLocaleString()}` : ''}.
+              </div>
+            )}
+            <button
+              className="mt-4 px-4 py-2 bg-gray-600 text-white rounded"
+              onClick={() => { setScannedData(null); setScanStatus(null); }}
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Event Registrations Modal */}
+      {showRegistrations && selectedEventRegistrations && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold">
+                Event Registrations
+              </h3>
+              <button
+                onClick={() => setShowRegistrations(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <XCircle className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="mb-4">
+              <p className="text-gray-600">
+                Total Registrations: {selectedEventRegistrations.registrations?.length || 0}
+                {selectedEventRegistrations.event?.isPaid && (
+                  <span className="ml-4 text-blue-600">
+                    • Paid Event: {selectedEventRegistrations.registrations?.filter((r: any) => r.paymentVerified).length || 0} paid / {selectedEventRegistrations.registrations?.filter((r: any) => !r.paymentVerified).length || 0} pending
+                  </span>
+                )}
+              </p>
+              {/* Debug Event Info */}
+              <div className="p-2 bg-blue-50 rounded text-xs mb-2">
+                <p className="text-gray-600">
+                  <strong>Event Debug:</strong> isPaid: {selectedEventRegistrations.event?.isPaid ? 'true' : 'false'}, 
+                  Price: {selectedEventRegistrations.event?.price || 'null'},
+                  Title: {selectedEventRegistrations.event?.title}
+                </p>
+              </div>
+              {selectedEventRegistrations.event?.isPaid && (
+                <div className="flex gap-2 mb-4">
+                  <button
+                    onClick={() => setRegistrationFilter('all')}
+                    className={`px-3 py-1 text-xs rounded ${
+                      registrationFilter === 'all' ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700'
+                    }`}
+                  >
+                    All
+                  </button>
+                  <button
+                    onClick={() => setRegistrationFilter('paid')}
+                    className={`px-3 py-1 text-xs rounded ${
+                      registrationFilter === 'paid' ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-700'
+                    }`}
+                  >
+                    Paid Only
+                  </button>
+                  <button
+                    onClick={() => setRegistrationFilter('pending')}
+                    className={`px-3 py-1 text-xs rounded ${
+                      registrationFilter === 'pending' ? 'bg-orange-500 text-white' : 'bg-gray-200 text-gray-700'
+                    }`}
+                  >
+                    Pending Payment
+                  </button>
+                </div>
+              )}
+            </div>
+            
+            {selectedEventRegistrations.registrations && selectedEventRegistrations.registrations.length > 0 ? (
+              <div className="grid gap-4">
+                {selectedEventRegistrations.registrations
+                  .filter((registration: any) => {
+                    if (registrationFilter === 'all') return true
+                    if (registrationFilter === 'paid') return registration.paymentVerified
+                    if (registrationFilter === 'pending') return !registration.paymentVerified
+                    return true
+                  })
+                  .map((registration: any, index: number) => (
+                  <div key={index} className="border rounded-lg p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex-1">
+                        <h4 className="font-semibold">{registration.userName || 'Unknown User'}</h4>
+                        <p className="text-sm text-gray-600">ID: {registration.userId}</p>
+                        <p className="text-sm text-gray-600">
+                          Registered: {new Date(registration.registeredAt).toLocaleString()}
+                        </p>
+                        <div className="flex items-center gap-2 mt-2">
+                          <span className={`text-xs px-2 py-1 rounded-full ${
+                            registration.status === 'confirmed' ? 'bg-green-100 text-green-800' :
+                            registration.status === 'waitlisted' ? 'bg-yellow-100 text-yellow-800' :
+                            'bg-red-100 text-red-800'
+                          }`}>
+                            {registration.status}
+                          </span>
+                          
+                          {/* Payment Status */}
+                          {selectedEventRegistrations.event?.isPaid && (
+                            <span className={`text-xs px-2 py-1 rounded-full ${
+                              registration.paymentVerified ? 'bg-blue-100 text-blue-800' : 'bg-orange-100 text-orange-800'
+                            }`}>
+                              {registration.paymentVerified ? 'Paid' : 'Pending Payment'}
+                            </span>
+                          )}
+                        </div>
+                        
+                        {/* Payment Details */}
+                        {selectedEventRegistrations.event?.isPaid && registration.paymentVerified && (
+                          <div className="mt-2 p-2 bg-gray-50 rounded text-xs">
+                            <p className="text-gray-600">
+                              <strong>Payment ID:</strong> {registration.paymentId || 'N/A'}
+                            </p>
+                            <p className="text-gray-600">
+                              <strong>Amount:</strong> ₹{registration.paymentAmount || 0} {registration.paymentCurrency || 'INR'}
+                            </p>
+                            <p className="text-gray-600">
+                              <strong>Payment Date:</strong> {registration.paymentTimestamp ? new Date(registration.paymentTimestamp).toLocaleString() : 'N/A'}
+                            </p>
+                          </div>
+                        )}
+                        
+                        {/* Debug Information */}
+                        <div className="mt-2 p-2 bg-yellow-50 rounded text-xs">
+                          <p className="text-gray-600">
+                            <strong>Debug:</strong> Event isPaid: {selectedEventRegistrations.event?.isPaid ? 'true' : 'false'}, 
+                            Payment Verified: {registration.paymentVerified ? 'true' : 'false'},
+                            Payment ID: {registration.paymentId || 'null'},
+                            Amount: {registration.paymentAmount || 'null'}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-center ml-4">
+                        {registration.qrCode && (
+                          <div>
+                            <img 
+                              src={registration.qrCode} 
+                              alt="QR Code" 
+                              className="w-16 h-16 mx-auto mb-2"
+                            />
+                            <p className="text-xs text-gray-500">QR Code</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <Users className="w-12 h-12 mx-auto text-gray-400 mb-2" />
+                <p className="text-gray-500">No registrations found for this event</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </motion.div>
   )
 } 

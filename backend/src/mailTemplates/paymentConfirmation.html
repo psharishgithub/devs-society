@@ -1,0 +1,29 @@
+<body style="background: #0f172a; color: #fff; font-family: 'Segoe UI', Arial, sans-serif; margin:0; padding:0;">
+  <div style="max-width: 480px; margin: 32px auto; background: #181f2e; border-radius: 16px; box-shadow: 0 4px 24px #0008; overflow: hidden;">
+    <div style="background: linear-gradient(90deg, #7c3aed 0%, #06b6d4 100%); padding: 24px 32px;">
+      <h2 style="margin:0; color: #fff; font-size: 1.5rem; font-weight: bold;">Registration Confirmed!</h2>
+    </div>
+    <div style="padding: 32px;">
+      <p style="font-size: 1.1rem; margin-bottom: 16px;">Hi <b>{{userName}}</b>,</p>
+      <p style="margin-bottom: 24px;">
+        Your registration for <b>{{eventTitle}}</b> is <span style="color: #22c55e; font-weight: bold;">confirmed</span>.
+      </p>
+      <div style="background: #101624; color: #fff; border-left: 4px solid #22c55e; border-radius: 8px; padding: 16px 20px; margin-bottom: 24px; box-shadow: 0 2px 8px #0004;">
+        <div style="font-weight: bold; color: #22c55e; margin-bottom: 8px;">Payment Details</div>
+        <div><b>Payment ID:</b> {{paymentId}}</div>
+        <div><b>Amount:</b> <span style="color:#22c55e; font-weight:bold;">₹{{amount}} {{currency}}</span></div>
+        <div><b>Date:</b> {{paymentDate}}</div>
+      </div>
+      <div style="margin-bottom: 16px;">
+        <b>Event Details:</b><br>
+        <span>{{eventTitle}}</span><br>
+        <span>{{eventDate}} at {{eventTime}}</span><br>
+        <span>{{eventLocation}}</span>
+      </div>
+      <p style="color: #94a3b8; font-size: 0.95rem;">If you have any questions, reply to this email.<br>See you at the event!</p>
+    </div>
+    <div style="background: #181f2e; color: #64748b; text-align: center; padding: 16px; font-size: 0.9rem;">
+      &copy; 2024 Devs Society
+    </div>
+  </div>
+</body> 

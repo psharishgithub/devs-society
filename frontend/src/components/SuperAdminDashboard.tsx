@@ -6,7 +6,7 @@ import {
   Menu, X, User, Mail, Phone, GraduationCap, Clock, Shield,
   Plus, Edit, Trash2, Eye, Search, Filter, Bell, TrendingUp,
   ChevronRight, Activity, UserCheck, MapPin, Archive,
-  RotateCcw, UserX, AlertTriangle, CheckCircle, XCircle
+  RotateCcw, UserX, AlertTriangle, CheckCircle, XCircle, QrCode, AlertCircle
 } from 'lucide-react'
 import { 
   superAdminApiService, 
@@ -15,6 +15,8 @@ import {
   type SuperAdminStats 
 } from '../services/adminApi'
 import UserModal from './UserModal'
+import QRScanner from './QRScanner'
+import EventCreateForm from './EventCreateForm'
 
 const SuperAdminDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState('overview')
@@ -31,7 +33,7 @@ const SuperAdminDashboard: React.FC = () => {
   const [showViewModal, setShowViewModal] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
   const [createType, setCreateType] = useState<'college' | 'admin' | 'event'>('college')
-  const [modalEntityType, setModalEntityType] = useState<'college' | 'admin' | 'event' | 'user'>('college')
+  const [modalEntityType, setModalEntityType] = useState<'college' | 'admin' | 'event' | 'user' | 'event-registrations'>('college')
   const [selectedEntity, setSelectedEntity] = useState<any>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [formData, setFormData] = useState<any>({})
@@ -39,6 +41,9 @@ const SuperAdminDashboard: React.FC = () => {
   // Add state for user modal
   const [userModalOpen, setUserModalOpen] = useState(false)
   const [selectedUser, setSelectedUser] = useState<any>(null)
+  const [showQRScanner, setShowQRScanner] = useState(false)
+  const [scannedData, setScannedData] = useState<any>(null)
+  const [scanStatus, setScanStatus] = useState<string | null>(null)
 
   // Load data on component mount
   useEffect(() => {
@@ -238,38 +243,37 @@ const SuperAdminDashboard: React.FC = () => {
     }
   }
 
-  const handleCreateEvent = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const handleCreateEventForm = async (form: any) => {
     setIsSubmitting(true)
     try {
-      const formData = new FormData(e.target as HTMLFormElement)
-      const date = formData.get('date') as string
-      const time = formData.get('time') as string
-      const eventType = formData.get('eventType') as string
-      
+      // Process admin pricing data
       const eventData = {
-        title: formData.get('title') as string,
-        description: formData.get('description') as string,
-        date: new Date(`${date}T${time}`).toISOString(),
-        location: formData.get('location') as string,
-        maxAttendees: formData.get('maxAttendees') ? parseInt(formData.get('maxAttendees') as string) : undefined,
-        eventType: eventType,
-        targetCollege: eventType === 'college-specific' ? formData.get('targetCollege') as string || undefined : undefined,
+        ...form,
+        adminPricing: form.adminPricing?.map((pricing: any) => ({
+          adminType: pricing.adminType,
+          amount: parseFloat(pricing.amount) || 0,
+          adminId: pricing.adminId
+        })).filter((pricing: any) => pricing.adminType && pricing.amount > 0) || []
       }
 
       const response = await superAdminApiService.createEvent(eventData)
       if (response.success) {
-        await loadEvents() // Reload events
+        await loadEvents()
         setShowCreateModal(false)
         setFormData({})
-        // Show success notification
         alert('Event created successfully!')
       } else {
         alert('Failed to create event: ' + (response.message || 'Unknown error'))
       }
     } catch (error: any) {
-      console.error('Error creating event:', error)
-      alert('Failed to create event: ' + (error.message || 'Unknown error'))
+      const errorMessage = error.response?.data?.message || error.message || 'Unknown error'
+      if (error.response?.data?.errors) {
+        const validationErrors = error.response.data.errors
+        const errorDetails = validationErrors.map((err: any) => `${err.path}: ${err.msg}`).join('\n')
+        alert(`Validation failed:\n${errorDetails}`)
+      } else {
+        alert('Failed to create event: ' + errorMessage)
+      }
     } finally {
       setIsSubmitting(false)
     }
@@ -298,17 +302,17 @@ const SuperAdminDashboard: React.FC = () => {
           
           if (shouldEndTenure) {
             try {
-                             // Find active admin for this college
-               const activeAdmin = admins.find(admin => 
-                 admin.assignedCollege?.id === collegeId && admin.tenureInfo?.isActive
-               )
-               
-               if (activeAdmin) {
-                 // End the admin's tenure using the existing API
-                 const tenureResponse = await superAdminApiService.endTenure({
-                   adminId: activeAdmin.id,
-                   reason: `College deletion: ${collegeName}`
-                 })
+              // Find active admin for this college
+              const activeAdmin = admins.find(admin => 
+                admin.assignedCollege?.id === collegeId && admin.tenureInfo?.isActive
+              )
+              
+              if (activeAdmin) {
+                // End the admin's tenure using the existing API
+                const tenureResponse = await superAdminApiService.endTenure({
+                  adminId: activeAdmin.id,
+                  reason: `College deletion: ${collegeName}`
+                })
                 
                 if (tenureResponse.success) {
                   // Now try to delete the college again
@@ -323,7 +327,7 @@ const SuperAdminDashboard: React.FC = () => {
                   alert('Failed to end admin tenure: ' + (tenureResponse.message || 'Unknown error'))
                 }
               } else {
-                alert('Could not find active admin for this college. Please try manually.')
+                alert('Could not find active admin for this college. Please try manually ending the tenure first.')
               }
             } catch (tenureError: any) {
               console.error('Error ending tenure:', tenureError)
@@ -349,7 +353,14 @@ const SuperAdminDashboard: React.FC = () => {
         }
       } catch (error: any) {
         console.error('Error removing admin:', error)
-        alert('Failed to remove admin: ' + (error.message || 'Unknown error'))
+        const errorMessage = error.response?.data?.message || error.message || 'Unknown error'
+        
+        // Check if it's a constraint error
+        if (errorMessage.includes('constraint') || errorMessage.includes('admin_college_check')) {
+          alert('Cannot remove admin due to database constraints. Please try ending their tenure first.')
+        } else {
+          alert('Failed to remove admin: ' + errorMessage)
+        }
       }
     }
   }
@@ -399,11 +410,31 @@ const SuperAdminDashboard: React.FC = () => {
         const selectedCollege = availableColleges[index]
         const reason = window.prompt('Enter reason for tenure transfer:') || `Transfer to ${selectedCollege.name}`
         
+        // Get the admin's current batch year or prompt for a new one
+        const admin = admins.find(a => a.id === adminId)
+        let batchYear = admin?.batchYear
+        
+        if (!batchYear) {
+          const batchYearInput = window.prompt(
+            `Enter the batch year for ${adminName} at ${selectedCollege.name} (e.g., 2024, 2025):`
+          )
+          if (!batchYearInput) {
+            alert('Batch year is required for transfer')
+            return
+          }
+          batchYear = parseInt(batchYearInput)
+          if (isNaN(batchYear) || batchYear < 2000 || batchYear > 2030) {
+            alert('Please enter a valid batch year between 2000 and 2030')
+            return
+          }
+        }
+        
         if (window.confirm(`Transfer ${adminName} to ${selectedCollege.name}?`)) {
           try {
             const response = await superAdminApiService.transferTenure({
               toAdminId: adminId,
               collegeId: selectedCollege.id,
+              batchYear: batchYear,
               transferReason: reason
             })
             if (response.success) {
@@ -666,17 +697,18 @@ const SuperAdminDashboard: React.FC = () => {
       const time = formData.get('time') as string
       const eventType = formData.get('eventType') as string
       
-      const updateData = {
+      const eventData = {
         title: formData.get('title') as string,
         description: formData.get('description') as string,
-        date: new Date(`${date}T${time}`).toISOString(),
+        date: date,
+        time: time,
         location: formData.get('location') as string,
         maxAttendees: formData.get('maxAttendees') ? parseInt(formData.get('maxAttendees') as string) : undefined,
         eventType: eventType,
         targetCollege: eventType === 'college-specific' ? formData.get('targetCollege') as string || undefined : undefined,
       }
 
-      const response = await superAdminApiService.updateEventDetails(selectedEntity.id, updateData)
+      const response = await superAdminApiService.updateEvent(selectedEntity.id, eventData)
       if (response.success) {
         await loadEvents()
         setShowEditModal(false)
@@ -688,9 +720,26 @@ const SuperAdminDashboard: React.FC = () => {
       }
     } catch (error: any) {
       console.error('Error updating event:', error)
-      alert('Failed to update event: ' + (error.message || 'Unknown error'))
+      const errorMessage = error.response?.data?.message || error.message || 'Unknown error'
+      alert('Failed to update event: ' + errorMessage)
     } finally {
       setIsSubmitting(false)
+    }
+  }
+
+  const handleViewEventRegistrations = async (eventId: string) => {
+    try {
+      const response = await superAdminApiService.getEventRegistrations(eventId)
+      if (response.success) {
+        setSelectedEntity({ ...response.event, registrations: response.registrations })
+        setModalEntityType('event-registrations')
+        setShowViewModal(true)
+      } else {
+        alert('Failed to load event registrations: ' + (response.message || 'Unknown error'))
+      }
+    } catch (error: any) {
+      console.error('Error loading event registrations:', error)
+      alert('Failed to load event registrations: ' + (error.message || 'Unknown error'))
     }
   }
 
@@ -720,13 +769,36 @@ const SuperAdminDashboard: React.FC = () => {
     }
   }
 
+  const handleQRScan = async (qrData: string): Promise<'success' | 'invalid' | 'already_checked_in' | 'error'> => {
+    try {
+      const response = await superAdminApiService.scanQRCode(qrData)
+      if (response.success) {
+        setScannedData(response.data)
+        setScanStatus(response.status) // 'registered' or 'not_registered'
+        setShowQRScanner(false)
+        // Map backend status to allowed QRScanner return values
+        return response.status === 'registered' ? 'success' : 'invalid'
+      } else {
+        setScannedData(null)
+        setScanStatus('invalid')
+        return 'invalid'
+      }
+    } catch (error: any) {
+      setScannedData(null)
+      setScanStatus('error')
+      return 'error'
+    }
+  }
+
   const sidebarItems = [
     { id: 'overview', icon: BarChart3, label: 'Overview', color: 'purple' },
     { id: 'colleges', icon: Building, label: 'Colleges', color: 'cyan' },
     { id: 'admins', icon: Shield, label: 'Admins', color: 'green' },
     { id: 'users', icon: Users, label: 'Users', color: 'blue' },
     { id: 'events', icon: Calendar, label: 'Events', color: 'orange' },
+    { id: 'attendance', icon: Calendar, label: 'Attendance', color: 'yellow' },
     { id: 'analytics', icon: TrendingUp, label: 'Analytics', color: 'pink' },
+    { id: 'participation', icon: Users, label: 'Participation', color: 'indigo' },
     { id: 'settings', icon: Settings, label: 'Settings', color: 'gray' },
   ]
 
@@ -1174,16 +1246,25 @@ const SuperAdminDashboard: React.FC = () => {
           <h2 className="text-2xl font-bold text-white">Event Management</h2>
           <p className="text-gray-400">Manage all events across colleges</p>
         </div>
-        <button
-          onClick={() => {
-            setCreateType('event')
-            setShowCreateModal(true)
-          }}
-          className="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-          Create Event
-        </button>
+        Failed to create event: Server error        <div className="flex gap-2">
+          <button
+            onClick={() => setShowQRScanner(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+          >
+            <QrCode className="w-4 h-4" />
+            QR Scanner
+          </button>
+          <button
+            onClick={() => {
+              setCreateType('event')
+              setShowCreateModal(true)
+            }}
+            className="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            Create Event
+          </button>
+        </div>
       </div>
 
       {/* Search and Filter */}
@@ -1230,28 +1311,35 @@ const SuperAdminDashboard: React.FC = () => {
                   </div>
                 </div>
                                  <div className="flex gap-2">
-                   <button 
-                     onClick={() => handleViewEvent(event.id)}
-                     className="p-2 bg-blue-600/20 text-blue-300 rounded-lg hover:bg-blue-600/30 transition-colors"
-                     title="View Event Details"
-                   >
-                     <Eye className="w-4 h-4" />
-                   </button>
-                   <button 
-                     onClick={() => handleEditEvent(event.id)}
-                     className="p-2 bg-purple-600/20 text-purple-300 rounded-lg hover:bg-purple-600/30 transition-colors"
-                     title="Edit Event"
-                   >
-                     <Edit className="w-4 h-4" />
-                   </button>
-                   <button 
-                     onClick={() => handleDeleteEvent(event.id, event.title)}
-                     className="p-2 bg-red-600/20 text-red-300 rounded-lg hover:bg-red-600/30 transition-colors"
-                     title="Delete Event"
-                   >
-                     <Trash2 className="w-4 h-4" />
-                   </button>
-                 </div>
+                  <button 
+                    onClick={() => handleViewEvent(event.id)}
+                    className="p-2 bg-blue-600/20 text-blue-300 rounded-lg hover:bg-blue-600/30 transition-colors"
+                    title="View Event Details"
+                  >
+                    <Eye className="w-4 h-4" />
+                  </button>
+                  <button 
+                    onClick={() => handleViewEventRegistrations(event.id)}
+                    className="p-2 bg-green-600/20 text-green-300 rounded-lg hover:bg-green-600/30 transition-colors"
+                    title="View Registrations"
+                  >
+                    <Users className="w-4 h-4" />
+                  </button>
+                  <button 
+                    onClick={() => handleEditEvent(event.id)}
+                    className="p-2 bg-purple-600/20 text-purple-300 rounded-lg hover:bg-purple-600/30 transition-colors"
+                    title="Edit Event"
+                  >
+                    <Edit className="w-4 h-4" />
+                  </button>
+                  <button 
+                    onClick={() => handleDeleteEvent(event.id, event.title)}
+                    className="p-2 bg-red-600/20 text-red-300 rounded-lg hover:bg-red-600/30 transition-colors"
+                    title="Delete Event"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
 
               <div className="space-y-3">
@@ -1687,7 +1775,6 @@ const SuperAdminDashboard: React.FC = () => {
 
   const renderCreateModal = () => {
     if (!showCreateModal) return null
-
     return (
       <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
         <motion.div
@@ -1706,8 +1793,9 @@ const SuperAdminDashboard: React.FC = () => {
               <X className="w-5 h-5" />
             </button>
           </div>
-
-          {createType === 'college' && (
+          {createType === 'event' ? (
+            <EventCreateForm onSubmit={handleCreateEventForm} />
+          ) : createType === 'college' ? (
             <form className="space-y-4" onSubmit={handleCreateCollege}>
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">College Name</label>
@@ -1811,9 +1899,7 @@ const SuperAdminDashboard: React.FC = () => {
                 </button>
               </div>
             </form>
-          )}
-
-          {createType === 'admin' && (
+          ) : (
             <form className="space-y-4" onSubmit={handleCreateAdmin}>
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">Full Name</label>
@@ -1871,6 +1957,19 @@ const SuperAdminDashboard: React.FC = () => {
                   ))}
                 </select>
               </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Batch Year *</label>
+                <input
+                  type="number"
+                  name="batchYear"
+                  placeholder="e.g., 2024, 2025"
+                  required
+                  min="2000"
+                  max="2030"
+                  className="w-full px-3 py-2 bg-white/10 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:border-green-500 focus:outline-none"
+                />
+                <p className="text-xs text-gray-400 mt-1">Year of the batch this admin will represent</p>
+              </div>
               <div className="flex gap-3 pt-4">
                 <button
                   type="submit"
@@ -1878,114 +1977,6 @@ const SuperAdminDashboard: React.FC = () => {
                   className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isSubmitting ? 'Creating...' : 'Create Admin'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowCreateModal(false)}
-                  className="flex-1 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
-                >
-                  Cancel
-                </button>
-              </div>
-            </form>
-          )}
-
-          {createType === 'event' && (
-            <form className="space-y-4" onSubmit={handleCreateEvent}>
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">Event Title</label>
-                <input
-                  type="text"
-                  name="title"
-                  placeholder="Enter event title"
-                  required
-                  className="w-full px-3 py-2 bg-white/10 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:border-orange-500 focus:outline-none"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">Description</label>
-                <textarea
-                  name="description"
-                  placeholder="Enter event description"
-                  rows={3}
-                  required
-                  className="w-full px-3 py-2 bg-white/10 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:border-orange-500 focus:outline-none resize-none"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Date</label>
-                  <input
-                    type="date"
-                    name="date"
-                    required
-                    className="w-full px-3 py-2 bg-white/10 border border-gray-600 rounded-lg text-white focus:border-orange-500 focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Time</label>
-                  <input
-                    type="time"
-                    name="time"
-                    required
-                    className="w-full px-3 py-2 bg-white/10 border border-gray-600 rounded-lg text-white focus:border-orange-500 focus:outline-none"
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">Location</label>
-                <input
-                  type="text"
-                  name="location"
-                  placeholder="Enter event location"
-                  required
-                  className="w-full px-3 py-2 bg-white/10 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:border-orange-500 focus:outline-none"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Max Attendees</label>
-                  <input
-                    type="number"
-                    name="maxAttendees"
-                    placeholder="100"
-                    min="1"
-                    className="w-full px-3 py-2 bg-white/10 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:border-orange-500 focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Event Type</label>
-                  <select 
-                    name="eventType"
-                    defaultValue="open-to-all"
-                    className="w-full px-3 py-2 bg-white/10 border border-gray-600 rounded-lg text-white focus:border-orange-500 focus:outline-none"
-                  >
-                    <option value="open-to-all" className="bg-black">Open to All</option>
-                    <option value="college-specific" className="bg-black">College Specific</option>
-                  </select>
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">Target College (if specific)</label>
-                <select 
-                  name="targetCollege"
-                  className="w-full px-3 py-2 bg-white/10 border border-gray-600 rounded-lg text-white focus:border-orange-500 focus:outline-none"
-                >
-                  <option value="">All colleges</option>
-                  {colleges.map(college => (
-                    <option key={college.id} value={college.id} className="bg-black">
-                      {college.name} ({college.code})
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="flex gap-3 pt-4">
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="flex-1 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {isSubmitting ? 'Creating...' : 'Create Event'}
                 </button>
                 <button
                   type="button"
@@ -2419,6 +2410,205 @@ const SuperAdminDashboard: React.FC = () => {
     )
   }
 
+  // QR Scanner Modal
+  const renderQRScannerModal = () => {
+    return (
+      <>
+        <QRScanner
+          isOpen={showQRScanner}
+          onClose={() => setShowQRScanner(false)}
+          onScan={handleQRScan}
+          title="Event Registration Scanner"
+        />
+        {/* QR Scan Result Modal */}
+        {scannedData && (
+          <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+            <div className="bg-gradient-to-br from-cyan-900/90 to-purple-900/90 rounded-2xl shadow-2xl p-8 max-w-md w-full border border-cyan-500/30">
+              <h2 className="text-2xl font-bold text-white mb-4 flex items-center gap-2">
+                <QrCode className="h-6 w-6 text-cyan-400" />
+                Event & Student Details
+              </h2>
+              <div className="mb-4 space-y-2">
+                <div>
+                  <span className="text-cyan-300 font-semibold">Event:</span>
+                  <span className="text-white ml-2">{scannedData.event?.title}</span>
+                </div>
+                <div>
+                  <span className="text-cyan-300 font-semibold">Date:</span>
+                  <span className="text-white ml-2">{scannedData.event?.date}</span>
+                </div>
+                <div>
+                  <span className="text-cyan-300 font-semibold">Location:</span>
+                  <span className="text-white ml-2">{scannedData.event?.location}</span>
+                </div>
+              </div>
+              <div className="mb-4 space-y-2">
+                <div>
+                  <span className="text-purple-300 font-semibold">Student:</span>
+                  <span className="text-white ml-2">{scannedData.user?.fullName}</span>
+                </div>
+                <div>
+                  <span className="text-purple-300 font-semibold">Email:</span>
+                  <span className="text-white ml-2">{scannedData.user?.email}</span>
+                </div>
+                <div>
+                  <span className="text-purple-300 font-semibold">College:</span>
+                  <span className="text-white ml-2">{scannedData.user?.college}</span>
+                </div>
+              </div>
+              {scanStatus === 'registered' && (
+                <div className="text-green-400 font-semibold mb-4 flex items-center gap-2">
+                  <CheckCircle className="h-5 w-5" /> Registered for this event!
+                </div>
+              )}
+              {scanStatus === 'not_registered' && (
+                <div className="text-red-400 font-semibold mb-4 flex items-center gap-2">
+                  <AlertCircle className="h-5 w-5" /> Not registered for this event.
+                </div>
+              )}
+              {scanStatus === 'invalid' && (
+                <div className="text-red-400 font-semibold mb-4 flex items-center gap-2">
+                  <AlertCircle className="h-5 w-5" /> Invalid QR code.
+                </div>
+              )}
+              {scanStatus === 'error' && (
+                <div className="text-red-400 font-semibold mb-4 flex items-center gap-2">
+                  <AlertCircle className="h-5 w-5" /> Error processing QR code.
+                </div>
+              )}
+              <button
+                className="mt-2 w-full px-4 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg font-semibold transition"
+                onClick={() => { setScannedData(null); setScanStatus(null); }}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        )}
+      </>
+    )
+  }
+
+  // Event Registrations Modal
+  const renderEventRegistrationsModal = () => {
+    if (!showViewModal || modalEntityType !== 'event-registrations' || !selectedEntity) return null
+
+    return (
+      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+        <div className="bg-white rounded-lg p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold">
+              Event Registrations: {selectedEntity.title}
+            </h3>
+            <button
+              onClick={() => setShowViewModal(false)}
+              className="text-gray-500 hover:text-gray-700"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+          
+          <div className="mb-4">
+            <p className="text-gray-600">
+              Total Registrations: {selectedEntity.registrations?.length || 0}
+              {selectedEntity.event?.isPaid && (
+                <span className="ml-4 text-blue-600">
+                  • Paid Event: {selectedEntity.registrations?.filter((r: any) => r.paymentVerified).length || 0} paid / {selectedEntity.registrations?.filter((r: any) => !r.paymentVerified).length || 0} pending
+                </span>
+              )}
+            </p>
+            {/* Debug Event Info */}
+            <div className="p-2 bg-blue-50 rounded text-xs mb-2">
+              <p className="text-gray-600">
+                <strong>Event Debug:</strong> isPaid: {selectedEntity.event?.isPaid ? 'true' : 'false'}, 
+                Price: {selectedEntity.event?.price || 'null'},
+                Title: {selectedEntity.event?.title}
+              </p>
+            </div>
+          </div>
+          
+                        {selectedEntity.registrations && selectedEntity.registrations.length > 0 ? (
+            <div className="grid gap-4">
+              {selectedEntity.registrations.map((registration: any, index: number) => (
+                <div key={registration.id} className="border rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex-1">
+                      <h4 className="font-semibold">{registration.userName}</h4>
+                      <p className="text-sm text-gray-600">ID: {registration.userId}</p>
+                      <p className="text-sm text-gray-600">
+                        Registered: {new Date(registration.registeredAt).toLocaleString()}
+                      </p>
+                      <div className="flex items-center gap-2 mt-2">
+                        <span className={`text-xs px-2 py-1 rounded-full ${
+                          registration.status === 'confirmed' ? 'bg-green-100 text-green-800' :
+                          registration.status === 'waitlisted' ? 'bg-yellow-100 text-yellow-800' :
+                          'bg-red-100 text-red-800'
+                        }`}>
+                          {registration.status}
+                        </span>
+                        
+                        {/* Payment Status */}
+                        {selectedEntity.event?.isPaid && (
+                          <span className={`text-xs px-2 py-1 rounded-full ${
+                            registration.paymentVerified ? 'bg-blue-100 text-blue-800' : 'bg-orange-100 text-orange-800'
+                          }`}>
+                            {registration.paymentVerified ? 'Paid' : 'Pending Payment'}
+                          </span>
+                        )}
+                      </div>
+                      
+                      {/* Payment Details */}
+                      {selectedEntity.event?.isPaid && registration.paymentVerified && (
+                        <div className="mt-2 p-2 bg-gray-50 rounded text-xs">
+                          <p className="text-gray-600">
+                            <strong>Payment ID:</strong> {registration.paymentId || 'N/A'}
+                          </p>
+                          <p className="text-sm text-gray-600">
+                            <strong>Amount:</strong> ₹{registration.paymentAmount || 0} {registration.paymentCurrency || 'INR'}
+                          </p>
+                          <p className="text-sm text-gray-600">
+                            <strong>Payment Date:</strong> {registration.paymentTimestamp ? new Date(registration.paymentTimestamp).toLocaleString() : 'N/A'}
+                          </p>
+                        </div>
+                      )}
+                      
+                      {/* Debug Information */}
+                      <div className="mt-2 p-2 bg-yellow-50 rounded text-xs">
+                        <p className="text-gray-600">
+                          <strong>Debug:</strong> Event isPaid: {selectedEntity.event?.isPaid ? 'true' : 'false'}, 
+                          Payment Verified: {registration.paymentVerified ? 'true' : 'false'},
+                          Payment ID: {registration.paymentId || 'null'},
+                          Amount: {registration.paymentAmount || 'null'}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-center ml-4">
+                      {registration.qrCode && (
+                        <div>
+                          <img 
+                            src={registration.qrCode} 
+                            alt="QR Code" 
+                            className="w-16 h-16 mx-auto mb-2"
+                          />
+                          <p className="text-xs text-gray-500">QR Code</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8">
+              <Users className="w-12 h-12 mx-auto text-gray-400 mb-2" />
+              <p className="text-gray-500">No registrations found for this event</p>
+            </div>
+          )}
+        </div>
+      </div>
+    )
+  }
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center">
@@ -2441,7 +2631,10 @@ const SuperAdminDashboard: React.FC = () => {
           open={userModalOpen}
           onClose={() => { setUserModalOpen(false); setSelectedUser(null) }}
           onSave={handleSaveUser}
-          onDelete={null}
+          onDelete={(userId: string) => {
+            // Handle user deletion if needed
+            console.log('Delete user:', userId)
+          }}
         />
       )}
       <div className="flex">
@@ -2482,7 +2675,15 @@ const SuperAdminDashboard: React.FC = () => {
                   return (
                     <li key={item.id}>
                       <button
-                        onClick={() => setActiveTab(item.id)}
+                        onClick={() => {
+                          if (item.id === 'attendance') {
+                            navigate('/admin/events/attendance')
+                          } else if (item.id === 'participation') {
+                            navigate('/superadmin/participation')
+                          } else {
+                            setActiveTab(item.id)
+                          }
+                        }}
                         className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all ${
                           activeTab === item.id
                             ? `bg-${item.color}-600 text-white`
@@ -2543,6 +2744,7 @@ const SuperAdminDashboard: React.FC = () => {
                     {activeTab === 'users' && 'Global user management across all colleges'}
                     {activeTab === 'events' && 'Global event management and oversight'}
                     {activeTab === 'analytics' && 'Advanced analytics and reporting'}
+                    {activeTab === 'participation' && 'Comprehensive event participation tracking'}
                     {activeTab === 'settings' && 'System settings and configuration'}
                   </p>
                 </div>
@@ -2564,6 +2766,8 @@ const SuperAdminDashboard: React.FC = () => {
           </main>
         </div>
       </div>
+      {renderQRScannerModal()}
+      {renderEventRegistrationsModal()}
     </div>
   )
 }

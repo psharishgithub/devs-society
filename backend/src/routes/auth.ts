@@ -32,7 +32,7 @@ const upload = multer({
 })
 
 // @route   POST /api/auth/register
-// @desc    Register a new user with batch year validation
+// @desc    Register a new user with batch year validation (photo upload is optional)
 // @access  Public
 router.post('/register', 
   upload.single('photo'),
@@ -66,11 +66,14 @@ router.post('/register',
         })
       }
 
-      // Find college by name and get college ID
+      // Find college by ID and get college details
       let collegeRef = null
+      let foundCollege = null
       try {
         const colleges = await CollegeService.getAllColleges()
-        const foundCollege = colleges.find(c => c.name.toLowerCase() === college.toLowerCase())
+        
+        // Find college by ID (frontend sends college ID)
+        foundCollege = colleges.find(c => c.id === college)
         if (foundCollege) {
           collegeRef = foundCollege.id
           
@@ -79,13 +82,30 @@ router.post('/register',
           if (!validation.valid) {
             return res.status(400).json({ 
               success: false, 
-              message: validation.error || 'Invalid batch year assignment' 
+              message: validation.error || 'Invalid batch year assignment',
+              field: 'batchYear',
+              details: {
+                college: foundCollege.name,
+                collegeId: foundCollege.id,
+                batchYear: batchYear,
+                availableBatches: await UserService.getAvailableBatchYears(collegeRef)
+              }
             })
           }
+        } else {
+          return res.status(400).json({ 
+            success: false, 
+            message: `College with ID "${college}" not found. Please select a valid college.`,
+            field: 'college'
+          })
         }
       } catch (error) {
         console.error('Error validating college and batch year:', error)
-        // Continue without validation if there's an error
+        return res.status(400).json({ 
+          success: false, 
+          message: 'Error validating college and batch year. Please try again.',
+          field: 'college'
+        })
       }
 
       // Create new user
@@ -93,14 +113,20 @@ router.post('/register',
         fullName,
         email,
         phone,
-        college,
+        college: foundCollege ? foundCollege.name : college, // Store college name, not ID
         collegeRef,
         batchYear,
         role: role || 'other'
       }
 
+      // Handle photo upload (optional)
       if (req.file) {
+        try {
         userData.photoUrl = `/uploads/photos/${req.file.filename}`
+        } catch (uploadError) {
+          console.warn('Photo upload failed, continuing without photo:', uploadError)
+          // Continue registration without photo
+        }
       }
 
       const user = await UserService.createUser(userData)
@@ -136,6 +162,17 @@ router.post('/register',
 
     } catch (error) {
       console.error('Registration error:', error)
+      
+      // Handle specific error types
+      if (error instanceof Error) {
+        if (error.message.includes('photo') || error.message.includes('upload')) {
+          return res.status(400).json({ 
+            success: false, 
+            message: 'Photo upload failed. Please try again or register without a photo.' 
+          })
+        }
+      }
+      
       res.status(500).json({ 
         success: false, 
         message: 'Server error during registration' 

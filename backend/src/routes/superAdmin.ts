@@ -5,8 +5,11 @@ import AdminService from '../services/adminService'
 import CollegeService from '../services/collegeService'
 import UserService from '../services/userService'
 import EventService from '../services/eventService'
+import { getSupabase } from '../database/supabase'
+import QRCodeService from '../services/qrCodeService'
 
 const router = express.Router()
+const supabase = getSupabase()
 
 // All routes require super admin access
 router.use(adminAuth, requireSuperAdmin)
@@ -135,7 +138,7 @@ router.put('/colleges/:id', async (req: Request, res: Response) => {
 // @access  Super Admin
 router.delete('/colleges/:id', async (req: Request, res: Response) => {
   try {
-    // First check if college has active tenure head
+    // First check if college exists
     const college = await CollegeService.findById(req.params.id)
     if (!college) {
       return res.status(404).json({ 
@@ -144,7 +147,7 @@ router.delete('/colleges/:id', async (req: Request, res: Response) => {
       })
     }
 
-    // Check if college has active tenure head using the new structure
+    // Check if college has active tenure heads
     const collegesWithAdmin = await CollegeService.getAllColleges()
     const collegeWithAdmin = collegesWithAdmin.find(c => c.id === req.params.id)
     
@@ -158,11 +161,30 @@ router.delete('/colleges/:id', async (req: Request, res: Response) => {
       }
     }
 
+    // Double-check with direct database query
+    const { data: activeTenures, error: tenureError } = await supabase
+      .from('college_tenure_heads')
+      .select('*')
+      .eq('college_id', req.params.id)
+      .eq('is_active', true)
+
+    if (tenureError) {
+      console.error('Error checking tenure heads:', tenureError)
+    }
+
+    if (activeTenures && activeTenures.length > 0) {
+      return res.status(400).json({ 
+        success: false, 
+        message: `Cannot delete college with active tenure heads. Found ${activeTenures.length} active tenure(s).` 
+      })
+    }
+
+    // Attempt to delete the college
     const result = await CollegeService.deleteCollege(req.params.id)
     if (!result) {
-      return res.status(404).json({ 
+      return res.status(500).json({ 
         success: false, 
-        message: 'College not found' 
+        message: 'Failed to delete college' 
       })
     }
 
@@ -170,9 +192,21 @@ router.delete('/colleges/:id', async (req: Request, res: Response) => {
       success: true,
       message: 'College deleted successfully'
     })
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error deleting college:', error)
-    res.status(500).json({ success: false, message: 'Server error' })
+    
+    // Provide more specific error messages
+    if (error.message.includes('active tenure head')) {
+      return res.status(400).json({ 
+        success: false, 
+        message: error.message 
+      })
+    }
+    
+    res.status(500).json({ 
+      success: false, 
+      message: error.message || 'Server error' 
+    })
   }
 })
 
@@ -340,6 +374,46 @@ router.get('/admins', async (req: Request, res: Response) => {
   }
 })
 
+// @route   GET /api/superadmin/admins-for-events
+// @desc    Get all admins with college information for event pricing
+// @access  Super Admin
+router.get('/admins-for-events', async (req: Request, res: Response) => {
+  try {
+    const admins = await AdminService.getAdminsByRole('admin')
+    
+    // Group admins by college for easier frontend consumption
+    const adminsByCollege = admins.reduce((acc: any, admin) => {
+      if (admin.collegeInfo) {
+        const collegeCode = admin.collegeInfo.code
+        if (!acc[collegeCode]) {
+          acc[collegeCode] = {
+            collegeName: admin.collegeInfo.name,
+            collegeCode: admin.collegeInfo.code,
+            admins: []
+          }
+        }
+        acc[collegeCode].admins.push({
+          id: admin.id,
+          fullName: admin.fullName,
+          username: admin.username,
+          batchYear: admin.batchYear || 2024
+        })
+      }
+      return acc
+    }, {})
+
+    res.json({
+      success: true,
+      count: admins.length,
+      adminsByCollege,
+      allAdmins: admins
+    })
+  } catch (error) {
+    console.error('Error fetching admins for events:', error)
+    res.status(500).json({ success: false, message: 'Server error' })
+  }
+})
+
 // @route   DELETE /api/superadmin/admins/:id
 // @desc    End admin tenure and deactivate admin
 // @access  Super Admin
@@ -353,22 +427,52 @@ router.delete('/admins/:id', async (req: Request, res: Response) => {
       })
     }
 
-    // End tenure
-    const result = await AdminService.endTenure(req.params.id)
+    // For regular admins, we need to handle the constraint properly
+    if (admin.role === 'admin' && admin.assignedCollege) {
+      // First end the tenure in the tenure_heads table
+      const { error: tenureError } = await supabase
+        .from('college_tenure_heads')
+        .update({
+          end_date: new Date().toISOString(),
+          is_active: false
+        })
+        .eq('admin_id', req.params.id)
+        .eq('college_id', admin.assignedCollege.id)
+        .eq('is_active', true)
+
+      if (tenureError) {
+        console.warn('Warning: Could not update tenure heads table:', tenureError)
+      }
+    }
+
+    // Now delete the admin (this will set is_active to false first)
+    const result = await AdminService.deleteAdmin(req.params.id)
     if (!result) {
       return res.status(500).json({ 
         success: false, 
-        message: 'Failed to end tenure' 
+        message: 'Failed to delete admin' 
       })
     }
 
     res.json({
       success: true,
-      message: 'Admin tenure ended and admin deactivated successfully'
+      message: 'Admin deleted successfully'
     })
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error deleting admin:', error)
-    res.status(500).json({ success: false, message: 'Server error' })
+    
+    // Provide more specific error messages
+    if (error.message.includes('constraint') || error.message.includes('admin_college_check')) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Cannot delete admin due to database constraints. Please try ending their tenure first.' 
+      })
+    }
+    
+    res.status(500).json({ 
+      success: false, 
+      message: error.message || 'Server error' 
+    })
   }
 })
 
@@ -632,15 +736,40 @@ router.get('/events', async (req: Request, res: Response) => {
 router.post('/events', [
   body('title').trim().isLength({ min: 3 }).withMessage('Title must be at least 3 characters'),
   body('description').trim().isLength({ min: 10 }).withMessage('Description must be at least 10 characters'),
-  body('date').isISO8601().withMessage('Valid date is required'),
+  body('date').custom((value) => {
+    if (!value) {
+      throw new Error('Date is required')
+    }
+    const date = new Date(value)
+    if (isNaN(date.getTime())) {
+      throw new Error('Valid date is required')
+    }
+    return true
+  }).withMessage('Valid date is required'),
   body('location').trim().isLength({ min: 3 }).withMessage('Location must be at least 3 characters'),
-  body('eventType').isIn(['workshop', 'seminar', 'competition', 'social', 'other', 'open-to-all']).withMessage('Invalid event type'),
-  body('maxAttendees').optional().isInt({ min: 1 }).withMessage('Max attendees must be a positive number'),
-  body('targetCollege').optional().isUUID().withMessage('Invalid college ID format')
+  body('eventType').optional().isIn(['workshop', 'seminar', 'competition', 'social', 'other', 'open-to-all', 'college-specific']).withMessage('Invalid event type'),
+  body('maxAttendees').optional().custom((value) => {
+    if (value !== undefined && value !== null && value !== '') {
+      const num = parseInt(value)
+      if (isNaN(num) || num < 1) {
+        throw new Error('Max attendees must be a positive number')
+      }
+    }
+    return true
+  }).withMessage('Max attendees must be a positive number'),
+  body('targetCollege').optional().custom((value) => {
+    if (value && value !== '' && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)) {
+      throw new Error('Invalid college ID format')
+    }
+    return true
+  }).withMessage('Invalid college ID format')
 ], async (req: Request, res: Response) => {
   try {
+    console.log('Event creation request body:', JSON.stringify(req.body, null, 2))
+    
     const errors = validationResult(req)
     if (!errors.isEmpty()) {
+      console.log('Validation errors:', JSON.stringify(errors.array(), null, 2))
       return res.status(400).json({ 
         success: false, 
         message: 'Validation failed', 
@@ -660,28 +789,87 @@ router.post('/events', [
       requirements, 
       prizes, 
       registrationDeadline,
-      targetCollege 
+      targetCollege,
+      isPaid,
+      price,
+      adminPricing
     } = req.body
 
+    console.log('Parsed event data:', {
+      title, description, date, time, location, eventType, category, maxAttendees, targetCollege
+    })
+
+    // Parse the date properly
+    const eventDate = new Date(date)
+    const eventTime = time || '10:00'
+    
+    // Determine event type and target college
+    const finalEventType = eventType || 'open-to-all'
+    let finalTargetCollege = null
+
+    if (finalEventType === 'college-specific') {
+      if (!targetCollege) {
+        return res.status(400).json({
+          success: false,
+          message: 'Target college is required for college-specific events'
+        })
+      }
+      finalTargetCollege = targetCollege
+    }
+
+    // Validate paid event fields
+    if (isPaid) {
+      if (finalEventType === 'open-to-all') {
+        if (!adminPricing || adminPricing.length === 0) {
+          return res.status(400).json({
+            success: false,
+            message: 'Admin pricing is required for paid open-to-all events'
+          })
+        }
+        // Validate each admin pricing entry
+        for (const pricing of adminPricing) {
+          if (!pricing.adminType || !pricing.amount || pricing.amount <= 0) {
+            return res.status(400).json({
+              success: false,
+              message: 'All admin pricing entries must have valid admin type and amount'
+            })
+          }
+        }
+      } else if (finalEventType === 'college-specific') {
+        if (!price || price <= 0) {
+          return res.status(400).json({
+            success: false,
+            message: 'Price is required for paid college-specific events and must be greater than 0'
+          })
+        }
+      }
+    }
+    
+    // Create the event data
     const eventData = {
       title,
       description,
-      date,
-      time: time || '10:00',
+      date: eventDate.toISOString().split('T')[0], // Just the date part
+      time: eventTime,
       location,
-      eventType: eventType || 'open-to-all',
+      eventType: finalEventType,
       category: category || 'other',
-      maxAttendees: maxAttendees || 100,
+      maxAttendees: maxAttendees ? parseInt(maxAttendees) : 100,
       requirements: requirements || [],
       prizes: prizes || [],
       registrationDeadline: registrationDeadline || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-      targetCollege: targetCollege || null, // null means open to all colleges
+      targetCollege: finalTargetCollege,
+      isPaid: isPaid || false,
+      price: isPaid ? (price || 0) : 0,
+      adminPricing: adminPricing || [],
       organizer: {
         adminId: req.admin!.id,
         name: req.admin!.username,
         contact: req.admin!.email
       }
     }
+
+    console.log('Final event data:', JSON.stringify(eventData, null, 2))
 
     const event = await EventService.createEvent(eventData)
 
@@ -725,6 +913,108 @@ router.get('/events/:id', async (req: Request, res: Response) => {
   }
 })
 
+// @route   PUT /api/superadmin/events/:id
+// @desc    Update event details
+// @access  Super Admin
+router.put('/events/:id', [
+  body('title').optional().trim().isLength({ min: 3 }).withMessage('Title must be at least 3 characters'),
+  body('description').optional().trim().isLength({ min: 10 }).withMessage('Description must be at least 10 characters'),
+  body('date').optional().custom((value) => {
+    if (value) {
+      const date = new Date(value)
+      if (isNaN(date.getTime())) {
+        throw new Error('Valid date is required')
+      }
+    }
+    return true
+  }).withMessage('Valid date is required'),
+  body('location').optional().trim().isLength({ min: 3 }).withMessage('Location must be at least 3 characters'),
+  body('eventType').optional().isIn(['workshop', 'seminar', 'competition', 'social', 'other', 'open-to-all', 'college-specific']).withMessage('Invalid event type'),
+  body('maxAttendees').optional().custom((value) => {
+    if (value !== undefined && value !== null && value !== '') {
+      const num = parseInt(value)
+      if (isNaN(num) || num < 1) {
+        throw new Error('Max attendees must be a positive number')
+      }
+    }
+    return true
+  }).withMessage('Max attendees must be a positive number'),
+  body('targetCollege').optional().custom((value) => {
+    if (value && value !== '' && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)) {
+      throw new Error('Invalid college ID format')
+    }
+    return true
+  }).withMessage('Invalid college ID format')
+], async (req: Request, res: Response) => {
+  try {
+    const errors = validationResult(req)
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Validation failed', 
+        errors: errors.array() 
+      })
+    }
+
+    const eventId = req.params.id
+    const { 
+      title, 
+      description, 
+      date, 
+      time, 
+      location, 
+      eventType, 
+      category, 
+      maxAttendees, 
+      requirements, 
+      prizes, 
+      registrationDeadline,
+      targetCollege 
+    } = req.body
+
+    // Check if event exists
+    const existingEvent = await EventService.findById(eventId)
+    if (!existingEvent) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Event not found' 
+      })
+    }
+
+    // Prepare update data
+    const updateData: any = {}
+    if (title !== undefined) updateData.title = title
+    if (description !== undefined) updateData.description = description
+    if (date !== undefined) updateData.date = new Date(date).toISOString().split('T')[0]
+    if (time !== undefined) updateData.time = time
+    if (location !== undefined) updateData.location = location
+    if (eventType !== undefined) updateData.eventType = eventType
+    if (category !== undefined) updateData.category = category
+    if (maxAttendees !== undefined) updateData.maxAttendees = parseInt(maxAttendees)
+    if (requirements !== undefined) updateData.requirements = requirements
+    if (prizes !== undefined) updateData.prizes = prizes
+    if (registrationDeadline !== undefined) updateData.registrationDeadline = registrationDeadline
+    if (targetCollege !== undefined) updateData.targetCollege = targetCollege
+
+    const event = await EventService.updateEvent(eventId, updateData)
+    if (!event) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Event not found' 
+      })
+    }
+
+    res.json({
+      success: true,
+      message: 'Event updated successfully',
+      event
+    })
+  } catch (error) {
+    console.error('Error updating event:', error)
+    res.status(500).json({ success: false, message: 'Server error' })
+  }
+})
+
 // @route   DELETE /api/superadmin/events/:id
 // @desc    Soft delete event (sets isActive to false)
 // @access  Super Admin
@@ -745,6 +1035,57 @@ router.delete('/events/:id', async (req: Request, res: Response) => {
     })
   } catch (error) {
     console.error('Error deleting event:', error)
+    res.status(500).json({ success: false, message: 'Server error' })
+  }
+})
+
+// @route   GET /api/superadmin/events/:id/registrations
+// @desc    Get event registrations with QR codes
+// @access  Super Admin
+router.get('/events/:id/registrations', async (req: Request, res: Response) => {
+  try {
+    const eventId = req.params.id
+    
+    // Check if event exists
+    const event = await EventService.findById(eventId)
+    if (!event) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Event not found' 
+      })
+    }
+
+    // Get registrations
+    const registrations = await EventService.getEventRegistrations(eventId)
+    
+    // Add QR codes for each registration
+    const registrationsWithQR = await Promise.all(
+      registrations.map(async (registration) => {
+        const qrCodeData = {
+          eventId: eventId,
+          userId: registration.userId,
+          registrationId: registration.id,
+          eventTitle: event.title,
+          userName: registration.userName || 'Unknown User'
+        }
+        
+        const qrCode = await QRCodeService.generateQRCode(JSON.stringify(qrCodeData))
+        
+        return {
+          ...registration,
+          qrCode
+        }
+      })
+    )
+
+    res.json({
+      success: true,
+      event,
+      registrations: registrationsWithQR,
+      totalRegistrations: registrationsWithQR.length
+    })
+  } catch (error) {
+    console.error('Error fetching event registrations:', error)
     res.status(500).json({ success: false, message: 'Server error' })
   }
 })
@@ -969,6 +1310,120 @@ router.post('/admins/transfer', [
     }
   } catch (error) {
     console.error('Error transferring admin:', error)
+    res.status(500).json({ success: false, message: 'Server error' })
+  }
+})
+
+// @route   POST /api/superadmin/scan-qr
+// @desc    Scan QR code to verify event registration
+// @access  Super Admin
+router.post('/scan-qr', [
+  body('qrData').isString().withMessage('QR data is required')
+], async (req: Request, res: Response) => {
+  try {
+    const errors = validationResult(req)
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Validation failed', 
+        errors: errors.array() 
+      })
+    }
+
+    const { qrData } = req.body
+    
+    try {
+      const parsedData = JSON.parse(qrData)
+      const { eventId, userId, registrationId, eventTitle, userName } = parsedData
+
+      // Get event details
+      const event = await EventService.findById(eventId)
+      // Get user details
+      const user = await UserService.findById(userId)
+      // Try to get registration
+      const registration = await EventService.getRegistrationById(registrationId)
+
+      if (!event && !user) {
+        return res.status(404).json({
+          success: false,
+          message: 'Event and user not found'
+        })
+      }
+      if (!event) {
+        return res.status(404).json({
+          success: false,
+          message: 'Event not found',
+          data: user ? { user } : undefined
+        })
+      }
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          message: 'User not found',
+          data: event ? { event } : undefined
+        })
+      }
+
+      if (!registration) {
+        // Return event and user details, but indicate not registered
+        return res.json({
+          success: true,
+          message: 'User is not registered for this event',
+          status: 'not_registered',
+          data: {
+            event: {
+              id: event.id,
+              title: event.title,
+              date: event.date,
+              time: event.time,
+              location: event.location
+            },
+            user: {
+              id: user.id,
+              fullName: user.fullName,
+              email: user.email,
+              memberId: user.memberId,
+              college: user.college
+            }
+          }
+        })
+      }
+
+      // If registration exists, return as before
+      res.json({
+        success: true,
+        message: 'QR code verified successfully',
+        status: 'registered',
+        data: {
+          event: {
+            id: event.id,
+            title: event.title,
+            date: event.date,
+            time: event.time,
+            location: event.location
+          },
+          user: {
+            id: user.id,
+            fullName: user.fullName,
+            email: user.email,
+            memberId: user.memberId,
+            college: user.college
+          },
+          registration: {
+            id: registration.id,
+            status: registration.status,
+            registeredAt: registration.registeredAt
+          }
+        }
+      })
+    } catch (parseError) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid QR code data'
+      })
+    }
+  } catch (error) {
+    console.error('Error scanning QR code:', error)
     res.status(500).json({ success: false, message: 'Server error' })
   }
 })

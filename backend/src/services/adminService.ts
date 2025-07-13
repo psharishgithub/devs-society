@@ -123,11 +123,15 @@ class AdminService {
         role: actualRole,
         permissions: permissions,
         is_active: true,
-        assigned_college_id: adminData.assignedCollege || null,
         batch_year: adminData.batchYear || null,
         tenure_start_date: adminData.assignedCollege ? new Date().toISOString() : null,
         tenure_end_date: null,
         tenure_is_active: adminData.assignedCollege ? true : false
+      }
+
+      // Only set assigned_college_id for regular admins (not super admins)
+      if (actualRole === 'admin' && adminData.assignedCollege) {
+        insertData.assigned_college_id = adminData.assignedCollege
       }
 
       const { data, error } = await this.supabase
@@ -522,17 +526,53 @@ class AdminService {
   // End admin tenure
   async endTenure(adminId: string, endDate?: string): Promise<boolean> {
     try {
+      // First, get the admin to check their role
+      const admin = await this.findById(adminId)
+      if (!admin) {
+        throw new Error('Admin not found')
+      }
+
+      const endDateStr = endDate || new Date().toISOString()
+
+      // For regular admins, we need to clear the college assignment
+      // For super admins, we don't need to change college assignment
+      const updateData: any = {
+        tenure_end_date: endDateStr,
+        tenure_is_active: false,
+      }
+
+      // Only clear college assignment for regular admins
+      if (admin.role === 'admin') {
+        // First set is_active to false to satisfy the constraint
+        updateData.is_active = false
+        updateData.assigned_college_id = null
+        updateData.batch_year = null
+      }
+
       const { error } = await this.supabase
         .from('admins')
-        .update({
-          tenure_end_date: endDate || new Date().toISOString(),
-          tenure_is_active: false,
-          assigned_college_id: null
-        })
+        .update(updateData)
         .eq('id', adminId)
 
       if (error) {
         handleSupabaseError(error, 'endTenure')
+      }
+
+      // Also update the tenure heads table
+      if (admin.role === 'admin' && admin.assignedCollege) {
+        const { error: tenureError } = await this.supabase
+          .from('college_tenure_heads')
+          .update({
+            end_date: endDateStr,
+            is_active: false
+          })
+          .eq('admin_id', adminId)
+          .eq('college_id', admin.assignedCollege.id)
+          .eq('is_active', true)
+
+        if (tenureError) {
+          console.warn('Warning: Could not update tenure heads table:', tenureError)
+        }
       }
 
       return true
@@ -569,17 +609,52 @@ class AdminService {
   // Soft delete admin
   async deleteAdmin(id: string): Promise<boolean> {
     try {
-      const { error } = await this.supabase
-        .from('admins')
-        .update({ 
+      // First, get the admin to check their role
+      const admin = await this.findById(id)
+      if (!admin) {
+        throw new Error('Admin not found')
+      }
+
+      const deleteDate = new Date().toISOString()
+
+      // For regular admins, we need to clear the college assignment
+      // For super admins, we don't need to change college assignment
+      const updateData: any = {
           is_active: false,
           tenure_is_active: false,
-          tenure_end_date: new Date().toISOString()
-        })
+        tenure_end_date: deleteDate
+      }
+
+      // Only clear college assignment for regular admins
+      if (admin.role === 'admin') {
+        updateData.assigned_college_id = null
+        updateData.batch_year = null
+      }
+
+      const { error } = await this.supabase
+        .from('admins')
+        .update(updateData)
         .eq('id', id)
 
       if (error) {
         handleSupabaseError(error, 'deleteAdmin')
+      }
+
+      // Also update the tenure heads table for regular admins
+      if (admin.role === 'admin' && admin.assignedCollege) {
+        const { error: tenureError } = await this.supabase
+          .from('college_tenure_heads')
+          .update({
+            end_date: deleteDate,
+            is_active: false
+          })
+          .eq('admin_id', id)
+          .eq('college_id', admin.assignedCollege.id)
+          .eq('is_active', true)
+
+        if (tenureError) {
+          console.warn('Warning: Could not update tenure heads table:', tenureError)
+        }
       }
 
       return true
@@ -802,6 +877,75 @@ class AdminService {
     } catch (error) {
       console.error('Error fetching unassigned admins:', error)
       return []
+    }
+  }
+
+  // Get admins for events (grouped by college)
+  async getAdminsForEvents(): Promise<any> {
+    try {
+      // Direct query to get admins with college info
+      const { data, error } = await this.supabase
+        .from('admins')
+        .select(`
+          id,
+          full_name,
+          username,
+          batch_year,
+          college_tenure_heads!inner(
+            start_date,
+            end_date,
+            is_active,
+            batch_year,
+            colleges(
+              id,
+              name,
+              code,
+              location
+            )
+          )
+        `)
+        .eq('role', 'admin')
+        .eq('is_active', true)
+        .eq('college_tenure_heads.is_active', true)
+
+      if (error) {
+        console.error('Database error in getAdminsForEvents:', error)
+        return {}
+      }
+
+      // Group admins by college
+      const adminsByCollege = (data || []).reduce((acc: any, admin: any) => {
+        if (admin.college_tenure_heads && Array.isArray(admin.college_tenure_heads)) {
+          const activeTenure = admin.college_tenure_heads.find((tenure: any) => tenure.is_active === true)
+          if (activeTenure && activeTenure.colleges) {
+            const collegeId = activeTenure.colleges.id
+            if (!acc[collegeId]) {
+              acc[collegeId] = {
+                college: {
+                  id: activeTenure.colleges.id,
+                  name: activeTenure.colleges.name,
+                  code: activeTenure.colleges.code,
+                  location: activeTenure.colleges.location
+                },
+                admins: []
+              }
+            }
+            acc[collegeId].admins.push({
+              id: admin.id,
+              fullName: admin.full_name,
+              username: admin.username,
+              batchYear: activeTenure.batch_year || admin.batch_year || 2024
+            })
+          }
+        }
+        return acc
+      }, {})
+
+      console.log('getAdminsForEvents result:', adminsByCollege)
+      return adminsByCollege
+    } catch (error) {
+      console.error('Error fetching admins for events:', error)
+      return {}
     }
   }
 

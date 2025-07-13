@@ -284,7 +284,15 @@ router.post('/events', [
       })
     }
 
-    const { title, description, date, time, location, eventType, category, maxAttendees, requirements, prizes, registrationDeadline } = req.body
+    const { title, description, date, time, location, eventType, category, maxAttendees, requirements, prizes, registrationDeadline, isPaid, price } = req.body
+
+    // Validate payment fields
+    if (isPaid && (!price || price <= 0)) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Price is required for paid events and must be greater than 0' 
+      })
+    }
 
     const eventData = {
       title,
@@ -299,6 +307,8 @@ router.post('/events', [
       prizes: prizes || [],
       registrationDeadline: registrationDeadline || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
       targetCollege: admin.assignedCollege?.id,
+      isPaid: isPaid || false,
+      price: isPaid ? (price || 0) : 0,
       organizer: {
         adminId: req.admin!.id,
         name: admin.fullName || admin.username,
@@ -540,7 +550,18 @@ router.get('/dashboard', async (req: Request, res: Response) => {
     const recentRegistrations = []
     for (const event of allEvents.slice(0, 5)) {
       const registrations = await EventService.getEventRegistrations(event.id)
-      recentRegistrations.push(...registrations.slice(0, 5))
+      // Add event information and payment details to each registration
+      const registrationsWithEventInfo = registrations.slice(0, 5).map(reg => ({
+        ...reg,
+        eventTitle: event.title,
+        eventIsPaid: event.isPaid,
+        paymentVerified: reg.paymentVerified,
+        paymentId: reg.paymentId,
+        paymentAmount: reg.paymentAmount,
+        paymentCurrency: reg.paymentCurrency,
+        paymentTimestamp: reg.paymentTimestamp
+      }))
+      recentRegistrations.push(...registrationsWithEventInfo)
     }
 
     res.json({

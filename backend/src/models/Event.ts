@@ -24,6 +24,8 @@ export interface IEvent extends Document {
   prizes?: string[]
   registrationDeadline: Date
   isActive: boolean
+  isPaid: boolean
+  pricing: { tenure: string, price: number }[]
   createdAt: Date
   updatedAt: Date
 }
@@ -128,7 +130,23 @@ const EventSchema: Schema = new Schema({
   isActive: {
     type: Boolean,
     default: true
-  }
+  },
+  isPaid: {
+    type: Boolean,
+    default: false
+  },
+  pricing: [{
+    tenure: {
+      type: String,
+      required: true,
+      trim: true
+    },
+    price: {
+      type: Number,
+      required: true,
+      min: 0
+    }
+  }]
 }, {
   timestamps: true
 })

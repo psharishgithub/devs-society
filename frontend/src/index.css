@@ -318,3 +318,124 @@ select {
   border-radius: 1rem;
   background: linear-gradient(135deg, rgba(13, 202, 240, 0.1) 0%, rgba(255, 0, 255, 0.1) 50%, rgba(0, 255, 153, 0.1) 100%);
 }
+
+/* Mobile QR Scanner Optimizations */
+@media (max-width: 768px) {
+  #qr-reader {
+    width: 100% !important;
+    min-height: 300px !important;
+  }
+  
+  #qr-reader__scan_region {
+    width: 100% !important;
+    height: 100% !important;
+  }
+  
+  #qr-reader__scan_region video {
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: cover !important;
+  }
+  
+  #qr-reader__dashboard {
+    padding: 8px !important;
+  }
+  
+  #qr-reader__dashboard_section {
+    margin-bottom: 8px !important;
+  }
+  
+  #qr-reader__dashboard_section_csr {
+    margin-bottom: 8px !important;
+  }
+  
+  #qr-reader__status_span {
+    font-size: 12px !important;
+  }
+  
+  #qr-reader__camera_selection {
+    font-size: 12px !important;
+    padding: 4px 8px !important;
+  }
+  
+  #qr-reader__dashboard_section_swaplink {
+    font-size: 12px !important;
+    padding: 4px 8px !important;
+  }
+}
+
+/* QR Scanner Container Styles */
+.qr-scanner-container {
+  position: relative;
+  width: 100%;
+  max-width: 400px;
+  margin: 0 auto;
+}
+
+.qr-scanner-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+}
+
+.qr-scanner-frame {
+  width: 250px;
+  height: 250px;
+  border: 2px solid #fff;
+  border-radius: 8px;
+  position: relative;
+}
+
+.qr-scanner-frame::before {
+  content: '';
+  position: absolute;
+  top: -2px;
+  left: -2px;
+  right: -2px;
+  bottom: -2px;
+  border: 2px solid transparent;
+  border-radius: 8px;
+  background: linear-gradient(45deg, #3b82f6, #8b5cf6, #06b6d4, #10b981);
+  background-size: 400% 400%;
+  animation: scanner-glow 2s ease-in-out infinite alternate;
+}
+
+@keyframes scanner-glow {
+  0% {
+    background-position: 0% 50%;
+  }
+  100% {
+    background-position: 100% 50%;
+  }
+}
+
+/* Mobile-specific touch optimizations */
+@media (max-width: 768px) {
+  .qr-scanner-container {
+    max-width: 100%;
+    padding: 0 16px;
+  }
+  
+  .qr-scanner-frame {
+    width: 200px;
+    height: 200px;
+  }
+  
+  /* Improve touch targets */
+  button {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  
+  /* Better mobile scrolling */
+  .qr-scanner-modal {
+    -webkit-overflow-scrolling: touch;
+  }
+}

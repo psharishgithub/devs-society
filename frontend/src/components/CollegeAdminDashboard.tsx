@@ -288,6 +288,14 @@ const CollegeAdminDashboard: React.FC = () => {
               <div className="flex-1">
                 <div className="text-white font-medium">{registration.userName}</div>
                 <div className="text-sm text-gray-400">registered for {registration.eventTitle}</div>
+                {/* Payment Status for Paid Events */}
+                {registration.eventIsPaid && (
+                  <div className={`text-xs px-2 py-1 rounded-full mt-1 inline-block ${
+                    registration.paymentVerified ? 'bg-blue-500/20 text-blue-300' : 'bg-orange-500/20 text-orange-300'
+                  }`}>
+                    {registration.paymentVerified ? 'Paid' : 'Pending Payment'}
+                  </div>
+                )}
               </div>
               <div className="text-right">
                 <div className={`text-xs px-2 py-1 rounded-full ${

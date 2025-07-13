@@ -166,6 +166,9 @@ export interface Database {
           requirements: string[]
           prizes: string[]
           registration_deadline: string
+          is_paid: boolean
+          price: number
+          admin_pricing: any
           is_active: boolean
           created_at: string
           updated_at: string
@@ -187,6 +190,9 @@ export interface Database {
           requirements?: string[]
           prizes?: string[]
           registration_deadline: string
+          is_paid?: boolean
+          price?: number
+          admin_pricing?: any
           is_active?: boolean
           created_at?: string
           updated_at?: string
@@ -208,6 +214,9 @@ export interface Database {
           requirements?: string[]
           prizes?: string[]
           registration_deadline?: string
+          is_paid?: boolean
+          price?: number
+          admin_pricing?: any
           is_active?: boolean
           created_at?: string
           updated_at?: string
@@ -222,6 +231,16 @@ export interface Database {
           status: 'confirmed' | 'waitlisted' | 'cancelled'
           created_at: string
           updated_at: string
+          qr_code_data: any
+          check_in_code: string | null
+          qr_code_url: string | null
+          checked_in_at: string | null
+          checked_in_by: string | null
+          payment_verified: boolean | null
+          payment_id: string | null
+          payment_amount: number | null
+          payment_currency: string | null
+          payment_timestamp: string | null
         }
         Insert: {
           id?: string
@@ -231,6 +250,16 @@ export interface Database {
           status?: 'confirmed' | 'waitlisted' | 'cancelled'
           created_at?: string
           updated_at?: string
+          qr_code_data?: any
+          check_in_code?: string | null
+          qr_code_url?: string | null
+          checked_in_at?: string | null
+          checked_in_by?: string | null
+          payment_verified?: boolean | null
+          payment_id?: string | null
+          payment_amount?: number | null
+          payment_currency?: string | null
+          payment_timestamp?: string | null
         }
         Update: {
           id?: string
@@ -240,6 +269,16 @@ export interface Database {
           status?: 'confirmed' | 'waitlisted' | 'cancelled'
           created_at?: string
           updated_at?: string
+          qr_code_data?: any
+          check_in_code?: string | null
+          qr_code_url?: string | null
+          checked_in_at?: string | null
+          checked_in_by?: string | null
+          payment_verified?: boolean | null
+          payment_id?: string | null
+          payment_amount?: number | null
+          payment_currency?: string | null
+          payment_timestamp?: string | null
         }
       }
       college_tenure_heads: {
@@ -273,6 +312,67 @@ export interface Database {
           start_date?: string
           end_date?: string | null
           is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      event_forms: {
+        Row: {
+          id: string
+          event_id: string
+          title: string
+          description: string | null
+          fields: any
+          is_active: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          event_id: string
+          title: string
+          description?: string | null
+          fields?: any
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          event_id?: string
+          title?: string
+          description?: string | null
+          fields?: any
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      event_form_responses: {
+        Row: {
+          id: string
+          form_id: string
+          user_id: string
+          responses: any
+          submitted_at: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          form_id: string
+          user_id: string
+          responses?: any
+          submitted_at?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          form_id?: string
+          user_id?: string
+          responses?: any
+          submitted_at?: string
           created_at?: string
           updated_at?: string
         }

@@ -390,6 +390,18 @@ router.put('/:id', auth, async (req, res) => {
   }
 })
 
+// Helper function to check if user is an admin
+const isUserAdmin = async (userEmail: string): Promise<boolean> => {
+  try {
+    const AdminService = require('../services/adminService').default
+    const admin = await AdminService.findByEmail(userEmail)
+    return admin !== null
+  } catch (error) {
+    console.error('Error checking if user is admin:', error)
+    return false
+  }
+}
+
 // @route   POST /api/events/:id/register
 // @desc    Register for an event
 // @access  Private
@@ -397,6 +409,15 @@ router.post('/:id/register', auth, async (req, res) => {
   try {
     const eventId = req.params.id
     const userId = req.user.id
+
+    // Check if user is an admin - prevent admins from registering as users
+    const isAdmin = await isUserAdmin(req.user.email)
+    if (isAdmin) {
+      return res.status(403).json({ 
+        success: false, 
+        message: 'Admins cannot register for events as users. Please use your admin account for event management.' 
+      })
+    }
 
     // Get event details to check if it's paid
     const event = await EventService.findById(eventId)
@@ -451,6 +472,15 @@ router.get('/:id/registration-status', auth, async (req, res) => {
     const eventId = req.params.id
     const userId = req.user.id
 
+    // Check if user is an admin - prevent admins from checking registration status as users
+    const isAdmin = await isUserAdmin(req.user.email)
+    if (isAdmin) {
+      return res.status(403).json({ 
+        success: false, 
+        message: 'Admins cannot check registration status as users. Please use your admin account for event management.' 
+      })
+    }
+
     // Get user's registrations for this event
     const registrations = await EventService.getUserRegistrations(userId)
     const userRegistration = registrations.find(reg => reg.eventId === eventId)
@@ -504,10 +534,15 @@ router.get('/test-razorpay', auth, async (req, res) => {
 
 // Create Razorpay order for event registration
 router.post('/:id/razorpay-order', auth, async (req, res) => {
-  // Block admin users from accessing this endpoint
-  if (req.user.role === 'core-member' || req.user.role === 'board-member') {
-    return res.status(403).json({ success: false, message: 'Admins cannot register for events as users.' });
+  // Check if user is an admin - prevent admins from registering as users
+  const isAdmin = await isUserAdmin(req.user.email)
+  if (isAdmin) {
+    return res.status(403).json({ 
+      success: false, 
+      message: 'Admins cannot register for events as users. Please use your admin account for event management.' 
+    })
   }
+  
   try {
     const { adminId } = req.body
     const eventId = req.params.id
@@ -606,10 +641,15 @@ router.post('/:id/razorpay-order', auth, async (req, res) => {
 
 // Verify Razorpay payment
 router.post('/:id/verify-payment', auth, async (req, res) => {
-  // Block admin users from accessing this endpoint
-  if (req.user.role === 'core-member' || req.user.role === 'board-member') {
-    return res.status(403).json({ success: false, message: 'Admins cannot register for events as users.' });
+  // Check if user is an admin - prevent admins from registering as users
+  const isAdmin = await isUserAdmin(req.user.email)
+  if (isAdmin) {
+    return res.status(403).json({ 
+      success: false, 
+      message: 'Admins cannot register for events as users. Please use your admin account for event management.' 
+    })
   }
+  
   try {
     const { 
       razorpay_payment_id, 
@@ -704,21 +744,22 @@ Devs Society Team
         html: emailContent.replace(/\n/g, '<br>')
       })
     } catch (emailError) {
-      console.error('Error sending confirmation email:', emailError)
-      // Don't fail the payment verification if email fails
+      console.error('Failed to send confirmation email:', emailError)
+      // Don't fail the registration if email fails
     }
 
-    res.json({ 
-      success: true, 
+    res.json({
+      success: true,
       message: 'Payment verified and registration confirmed',
-      registration: {
-        id: registration.id,
-        status: registration.status
-      }
+      registration
     })
-  } catch (error) {
-    console.error('Error verifying payment:', error)
-    res.status(500).json({ success: false, message: 'Payment verification failed' })
+  } catch (error: any) {
+    console.error('Payment verification error:', error)
+    res.status(500).json({ 
+      success: false, 
+      message: 'Payment verification failed',
+      error: error?.message || 'Unknown error'
+    })
   }
 })
 

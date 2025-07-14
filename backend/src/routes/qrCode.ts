@@ -19,6 +19,16 @@ router.get('/event/:eventId/my-qr', auth, async (req: Request, res: Response) =>
     const userId = req.user.id
     const supabase = getSupabase()
 
+    // Check if user is an admin - prevent admins from getting QR codes as users
+    const AdminService = require('../services/adminService').default
+    const admin = await AdminService.findByEmail(req.user.email)
+    if (admin) {
+      return res.status(403).json({ 
+        success: false, 
+        message: 'Admins cannot access QR codes as users. Please use your admin account for event management.' 
+      })
+    }
+
     // Get event details to check if it's paid
     const { data: event, error: eventError } = await supabase
       .from('events')

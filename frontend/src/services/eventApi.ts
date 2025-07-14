@@ -92,4 +92,90 @@ export const getEventRegistrations = async (eventId: string) => {
   }
 }
 
+export const createEventWithPhoto = async (eventData: any) => {
+  try {
+    const formData = new FormData()
+    
+    // Handle photo separately
+    if (eventData.photo) {
+      formData.append('photo', eventData.photo)
+    }
+    
+    // Handle other fields, converting objects to JSON strings
+    Object.entries(eventData).forEach(([key, value]) => {
+      if (key === 'photo') {
+        // Photo already handled above
+        return
+      }
+      
+      if (value !== undefined && value !== null) {
+        if (typeof value === 'object' && !Array.isArray(value)) {
+          // Convert objects to JSON strings
+          formData.append(key, JSON.stringify(value))
+        } else if (Array.isArray(value)) {
+          // Handle arrays (like adminPricing)
+          formData.append(key, JSON.stringify(value))
+        } else {
+          formData.append(key, String(value))
+        }
+      }
+    })
+    
+    const token = localStorage.getItem('authToken')
+    const response = await axios.post(`${API_BASE_URL}/events`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+        ...(token ? { Authorization: `Bearer ${token}` } : {})
+      }
+    })
+    return response.data
+  } catch (error) {
+    console.error('Error creating event with photo:', error)
+    throw error
+  }
+}
+
+export const updateEventWithPhoto = async (eventId: string, eventData: any) => {
+  try {
+    const formData = new FormData()
+    
+    // Handle photo separately
+    if (eventData.photo) {
+      formData.append('photo', eventData.photo)
+    }
+    
+    // Handle other fields, converting objects to JSON strings
+    Object.entries(eventData).forEach(([key, value]) => {
+      if (key === 'photo') {
+        // Photo already handled above
+        return
+      }
+      
+      if (value !== undefined && value !== null) {
+        if (typeof value === 'object' && !Array.isArray(value)) {
+          // Convert objects to JSON strings
+          formData.append(key, JSON.stringify(value))
+        } else if (Array.isArray(value)) {
+          // Handle arrays (like adminPricing)
+          formData.append(key, JSON.stringify(value))
+        } else {
+          formData.append(key, String(value))
+        }
+      }
+    })
+    
+    const token = localStorage.getItem('authToken')
+    const response = await axios.put(`${API_BASE_URL}/events/${eventId}`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+        ...(token ? { Authorization: `Bearer ${token}` } : {})
+      }
+    })
+    return response.data
+  } catch (error) {
+    console.error('Error updating event with photo:', error)
+    throw error
+  }
+}
+
 export default eventApi 

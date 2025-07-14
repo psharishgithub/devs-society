@@ -17,9 +17,13 @@ const eventTypes = [
 
 const EventModal: React.FC<EventModalProps> = ({ event, open, mode, onClose, onSave, onDelete, colleges = [] }) => {
   const [form, setForm] = useState<any>(event || {})
+  const [selectedPhoto, setSelectedPhoto] = useState<File | null>(null)
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null)
 
   useEffect(() => {
     setForm(event || {})
+    setSelectedPhoto(null)
+    setPhotoPreview(event?.photoUrl || null)
   }, [event, open, mode])
 
   if (!open) return null
@@ -28,20 +32,40 @@ const EventModal: React.FC<EventModalProps> = ({ event, open, mode, onClose, onS
     setForm({ ...form, [e.target.name]: e.target.value })
   }
 
+  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      setSelectedPhoto(file)
+      const reader = new FileReader()
+      reader.onload = (e) => setPhotoPreview(e.target?.result as string)
+      reader.readAsDataURL(file)
+    }
+  }
+
   const handleSave = () => {
-    onSave(form)
+    onSave({ ...form, photo: selectedPhoto })
   }
 
   const isReadOnly = mode === 'view'
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-      <div className="bg-gray-900 rounded-xl p-8 w-full max-w-lg shadow-lg relative">
+      <div className="bg-gray-900 rounded-xl p-8 w-full max-w-lg shadow-lg relative max-h-[90vh] overflow-y-auto">
         <button className="absolute top-2 right-2 text-gray-400 hover:text-white" onClick={onClose}>&times;</button>
         <h2 className="text-xl font-bold text-white mb-4">
           {mode === 'create' ? 'Create Event' : mode === 'edit' ? 'Edit Event' : 'Event Details'}
         </h2>
         <div className="space-y-4">
+          {/* Event Thumbnail Upload */}
+          <div>
+            <label className="block text-gray-400 text-sm mb-1">Event Thumbnail (optional)</label>
+            <div className="flex items-center gap-4">
+              <input type="file" accept="image/*" onChange={handlePhotoChange} disabled={isReadOnly} />
+              {photoPreview && (
+                <img src={photoPreview} alt="Preview" className="w-20 h-20 rounded object-cover border border-gray-700" />
+              )}
+            </div>
+          </div>
           <div>
             <label className="block text-gray-400 text-sm mb-1">Event Title</label>
             <input name="title" value={form.title || ''} onChange={handleChange} className="w-full p-2 rounded bg-gray-800 text-white" disabled={isReadOnly} required />

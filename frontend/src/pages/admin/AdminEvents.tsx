@@ -326,7 +326,7 @@ export function AdminEvents() {
       {/* Create Event Modal */}
       {showCreateForm && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-          <div className="bg-gray-800 rounded-xl p-6 w-full max-w-md">
+          <div className="bg-gray-800 rounded-xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
           <h2 className="text-xl font-bold text-white mb-4">Create New Event</h2>
             <div className="space-y-4">
               <Input
@@ -391,7 +391,7 @@ export function AdminEvents() {
       {/* QR Scan Result Modal */}
       {scannedData && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-          <div className="bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl p-6 max-w-md w-full border border-gray-700">
+          <div className="bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl p-6 max-w-md w-full border border-gray-700 max-h-[90vh] overflow-y-auto">
             <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
               <QrCode className="h-5 w-5 text-cyan-400" />
               Member Verification Result

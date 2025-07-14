@@ -169,6 +169,7 @@ export interface Database {
           is_paid: boolean
           price: number
           admin_pricing: any
+          photo_url: string | null
           is_active: boolean
           created_at: string
           updated_at: string
@@ -193,6 +194,7 @@ export interface Database {
           is_paid?: boolean
           price?: number
           admin_pricing?: any
+          photo_url?: string | null
           is_active?: boolean
           created_at?: string
           updated_at?: string
@@ -217,6 +219,7 @@ export interface Database {
           is_paid?: boolean
           price?: number
           admin_pricing?: any
+          photo_url?: string | null
           is_active?: boolean
           created_at?: string
           updated_at?: string

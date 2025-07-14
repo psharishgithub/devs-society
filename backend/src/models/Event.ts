@@ -28,6 +28,7 @@ export interface IEvent extends Document {
   pricing: { tenure: string, price: number }[]
   createdAt: Date
   updatedAt: Date
+  photoUrl?: string
 }
 
 const EventSchema: Schema = new Schema({
@@ -146,7 +147,12 @@ const EventSchema: Schema = new Schema({
       required: true,
       min: 0
     }
-  }]
+  }],
+  photoUrl: {
+    type: String,
+    trim: true,
+    default: ''
+  }
 }, {
   timestamps: true
 })

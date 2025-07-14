@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Link } from 'react-router-dom'
 import { Button } from '../components/ui/button'
 import { ParticlesComponent } from '../components/particles'
-import { Code, CreditCard, Calendar, LogOut, User, Crown, Sparkles, ArrowRight, Bell, Settings, Activity, Users, Trophy, Clock, Plus, RefreshCw, X } from 'lucide-react'
+import { Code, CreditCard, Calendar, LogOut, User, Crown, Sparkles, ArrowRight, Bell, Settings, Activity, Users, Trophy, Clock, Plus, RefreshCw, X, Menu } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { eventsAPI, usersAPI } from '../services/api'
 import type { Event, UserStats } from '../services/api'
@@ -35,6 +35,7 @@ export function Dashboard() {
   const [selectedPhoto, setSelectedPhoto] = useState<File | null>(null)
   const [photoPreview, setPhotoPreview] = useState<string | null>(null)
   const [isUploading, setIsUploading] = useState(false)
+  const [showMobileMenu, setShowMobileMenu] = useState(false)
   const [notifications, setNotifications] = useState([
     { id: 1, message: 'Welcome to DEVS Portal!', type: 'info', unread: true },
     { id: 2, message: 'New event: React Workshop next week', type: 'event', unread: true }
@@ -200,28 +201,41 @@ export function Dashboard() {
       <div className="absolute inset-0 bg-gradient-to-br from-purple-950/20 via-black to-cyan-950/20"></div>
       
       {/* Header */}
-      <header className="relative z-10 p-6 border-b border-gray-800/50 backdrop-blur-md">
+      <header className="relative z-10 p-4 sm:p-6 border-b border-gray-800/50 backdrop-blur-md">
         <div className="container mx-auto flex justify-between items-center">
           <motion.div 
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.6 }}
-            className="flex items-center gap-3"
+            className="flex items-center gap-2 sm:gap-3"
           >
-            <div className="p-2 rounded-lg bg-gradient-to-r from-purple-500 to-cyan-500 animate-pulse-glow">
-              <Code className="h-8 w-8 text-white" />
+            <div className="p-1 sm:p-2 rounded-lg bg-gradient-to-r from-purple-500 to-cyan-500 animate-pulse-glow">
+              <Code className="h-6 w-6 sm:h-8 sm:w-8 text-white" />
             </div>
             <div>
-              <span className="text-2xl font-bold font-techie">DEVS</span>
-              <span className="text-lg text-gray-400 ml-2">Portal</span>
+              <span className="text-xl sm:text-2xl font-bold font-techie">DEVS</span>
+              <span className="text-sm sm:text-lg text-gray-400 ml-1 sm:ml-2">Portal</span>
             </div>
           </motion.div>
           
+          {/* Mobile Menu Button */}
+          <div className="lg:hidden">
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={() => setShowMobileMenu(!showMobileMenu)}
+              className="text-gray-300 hover:text-cyan-400"
+            >
+              <Menu className="h-5 w-5" />
+            </Button>
+          </div>
+          
+          {/* Desktop Navigation */}
           <motion.div 
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.6, delay: 0.2 }}
-            className="flex items-center gap-4"
+            className="hidden lg:flex items-center gap-4"
           >
             {/* Notifications */}
             <div className="relative">
@@ -264,6 +278,60 @@ export function Dashboard() {
             </Button>
           </motion.div>
         </div>
+        
+        {/* Mobile Navigation Menu */}
+        <AnimatePresence>
+          {showMobileMenu && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="lg:hidden mt-4 border-t border-gray-800/50 pt-4"
+            >
+              <div className="flex flex-col space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <Button variant="ghost" size="sm" className="relative">
+                      <Bell className="h-4 w-4" />
+                      {notifications.some(n => n.unread) && (
+                        <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full text-xs"></span>
+                      )}
+                    </Button>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={handleRefresh}
+                      disabled={isRefreshing}
+                      className="text-gray-300 hover:text-cyan-400"
+                    >
+                      <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+                    </Button>
+                  </div>
+                </div>
+                <div className="flex flex-col space-y-2">
+                  <Link to="/portal" className="text-sm text-purple-400 font-medium px-4 py-2 rounded-lg border border-purple-400/30 bg-purple-950/20 text-center">
+                    Dashboard
+                  </Link>
+                  <Link to="/events" className="text-sm text-gray-300 hover:text-cyan-400 transition-colors px-4 py-2 text-center">
+                    Events
+                  </Link>
+                  <Link to="/card" className="text-sm text-gray-300 hover:text-cyan-400 transition-colors px-4 py-2 text-center">
+                    My Card
+                  </Link>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={handleLogout}
+                    className="border-red-500/50 text-red-400 hover:bg-red-500/10 hover:text-red-300"
+                  >
+                    <LogOut className="h-4 w-4 mr-2" />
+                    Logout
+                  </Button>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </header>
 
       {/* Error Banner */}
@@ -328,11 +396,11 @@ export function Dashboard() {
               </span>
             </div>
             
-            <h1 className="text-5xl md:text-7xl font-bold mb-6 font-techie">
+            <h1 className="text-3xl sm:text-5xl md:text-7xl font-bold mb-6 font-techie">
               Welcome, <span className="text-gradient glitch-text">{user.fullName.split(' ')[0]}</span>!
             </h1>
             
-            <p className="text-xl text-gray-300 max-w-2xl mx-auto mb-8">
+            <p className="text-lg sm:text-xl text-gray-300 max-w-2xl mx-auto mb-8 px-4">
               Your digital workspace awaits. Manage your membership, explore events, and connect with the DEVS community.
             </p>
             
@@ -349,7 +417,7 @@ export function Dashboard() {
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, delay: 0.2 }}
-            className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-16 max-w-4xl mx-auto"
+            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mb-16 max-w-4xl mx-auto px-4"
           >
             <div className="backdrop-glass rounded-xl p-6 border border-cyan-400/30 text-center">
               <div className="w-12 h-12 bg-cyan-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -387,11 +455,11 @@ export function Dashboard() {
           </motion.div>
 
           {/* Main Content Grid */}
-          <div className="grid lg:grid-cols-3 gap-8">
+          <div className="grid lg:grid-cols-3 gap-6 lg:gap-8 px-4">
             {/* Left Column - Action Cards */}
-            <div className="lg:col-span-2 space-y-8">
+            <div className="lg:col-span-2 space-y-6 lg:space-y-8">
               {/* Action Cards */}
-              <div className="grid md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
                 {/* Digital Card */}
                 <motion.div
                   initial={{ opacity: 0, y: 40 }}
@@ -644,7 +712,7 @@ export function Dashboard() {
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="bg-black border border-gray-700 rounded-xl p-6 w-full max-w-md"
+            className="bg-black border border-gray-700 rounded-xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto"
           >
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-xl font-bold text-white">Edit Profile</h3>

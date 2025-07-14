@@ -4,6 +4,8 @@ import EventService from '../services/eventService'
 import UserService from '../services/userService'
 import auth from '../middleware/auth'
 import CollegeService from '../services/collegeService'
+import multer from 'multer'
+import storageService from '../services/supabaseStorage'
 const Razorpay = require('razorpay')
 const nodemailer = require('nodemailer')
 const crypto = require('crypto')
@@ -13,6 +15,15 @@ const router = express.Router()
 const razorpay = new Razorpay({ 
   key_id: process.env.RAZORPAY_KEY_ID || 'rzp_test_RVKFS8WX756Anx', 
   key_secret: process.env.RAZORPAY_KEY_SECRET || 'kpUZ6zd9t5q7VRM2c76xnqdo'
+})
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) cb(null, true)
+    else cb(new Error('Only image files are allowed'))
+  }
 })
 
 // @route   GET /api/events
@@ -269,6 +280,7 @@ router.get('/:id', auth, async (req, res) => {
 // @access  Private
 router.post('/',
   auth,
+  upload.single('photo'),
   [
     body('title').trim().isLength({ min: 3 }).withMessage('Title must be at least 3 characters'),
     body('description').trim().isLength({ min: 10 }).withMessage('Description must be at least 10 characters'),
@@ -298,56 +310,51 @@ router.post('/',
         category,
         maxAttendees, 
         targetCollege,
-        requirements,
-        prizes,
-        registrationDeadline,
-        isPaid,
-        price
+        adminPricing,
+        ...rest
       } = req.body
 
-      // Validate payment fields
-      if (isPaid && (!price || price <= 0)) {
-        return res.status(400).json({ 
-          success: false, 
-          message: 'Price is required for paid events and must be greater than 0' 
-        })
+      let photoUrl = ''
+      if (req.file) {
+        const uploadResult = await storageService.uploadEventPhoto(req.file.buffer, req.file.originalname, title.replace(/\s+/g, '-'))
+        if (uploadResult.success && uploadResult.url) {
+          photoUrl = uploadResult.url
+        } else {
+          return res.status(400).json({ success: false, message: uploadResult.error || 'Failed to upload event photo' })
+        }
+      }
+
+      // Parse adminPricing if it's a JSON string
+      let parsedAdminPricing = []
+      if (adminPricing) {
+        try {
+          parsedAdminPricing = typeof adminPricing === 'string' ? JSON.parse(adminPricing) : adminPricing
+        } catch (error) {
+          console.error('Error parsing adminPricing:', error)
+          return res.status(400).json({ success: false, message: 'Invalid adminPricing format' })
+        }
       }
 
       const eventData = {
         title,
         description,
         date,
-        time: time || '10:00',
+        time,
         location,
-        eventType: eventType || 'open-to-all',
-        category: category || 'other',
-        maxAttendees: maxAttendees || 100,
+        eventType,
+        category,
+        maxAttendees,
         targetCollege,
-        organizer: {
-          adminId: req.user.id,
-          name: 'Admin',
-          contact: req.user.email
-        },
-        requirements: requirements || [],
-        prizes: prizes || [],
-        registrationDeadline: registrationDeadline || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // Default to 7 days from now
-        isPaid: isPaid || false,
-        price: isPaid ? (price || 0) : 0
+        adminPricing: parsedAdminPricing,
+        photoUrl,
+        ...rest
       }
 
       const event = await EventService.createEvent(eventData)
-
-      res.status(201).json({
-        success: true,
-        message: 'Event created successfully',
-        event
-      })
+      res.status(201).json({ success: true, event })
     } catch (error) {
       console.error('Event creation error:', error)
-      res.status(500).json({ 
-        success: false, 
-        message: 'Server error' 
-      })
+      res.status(500).json({ success: false, message: 'Server error' })
     }
   }
 )
@@ -355,19 +362,39 @@ router.post('/',
 // @route   PUT /api/events/:id
 // @desc    Update event details
 // @access  Private
-router.put('/:id', auth, async (req, res) => {
+router.put('/:id', auth, upload.single('photo'), async (req, res) => {
   try {
-    const { title, description, date, location, eventType, maxAttendees, isActive } = req.body
+    const { title, description, date, time, location, eventType, maxAttendees, isActive, category, targetCollege } = req.body
 
-    const event = await EventService.updateEvent(req.params.id, {
+    let photoUrl = undefined
+    if (req.file) {
+      const uploadResult = await storageService.uploadEventPhoto(req.file.buffer, req.file.originalname, title?.replace(/\s+/g, '-') || 'event')
+      if (uploadResult.success && uploadResult.url) {
+        photoUrl = uploadResult.url
+      } else {
+        return res.status(400).json({ success: false, message: uploadResult.error || 'Failed to upload event photo' })
+      }
+    }
+
+    const updateData: any = {
       title,
       description,
       date,
+      time,
       location,
       eventType,
-      maxAttendees,
-      isActive
-    })
+      maxAttendees: maxAttendees ? parseInt(maxAttendees) : undefined,
+      isActive,
+      category,
+      targetCollege
+    }
+
+    // Only include photoUrl if a new photo was uploaded
+    if (photoUrl !== undefined) {
+      updateData.photoUrl = photoUrl
+    }
+
+    const event = await EventService.updateEvent(req.params.id, updateData)
 
     if (!event) {
       return res.status(404).json({ 

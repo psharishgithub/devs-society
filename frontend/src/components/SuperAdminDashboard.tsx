@@ -45,6 +45,8 @@ const SuperAdminDashboard: React.FC = () => {
   const [showQRScanner, setShowQRScanner] = useState(false)
   const [scannedData, setScannedData] = useState<any>(null)
   const [scanStatus, setScanStatus] = useState<string | null>(null)
+  const [editPhotoPreview, setEditPhotoPreview] = useState<string | null>(null)
+  const [editPhotoFile, setEditPhotoFile] = useState<File | null>(null)
 
   // Load data on component mount
   useEffect(() => {
@@ -257,7 +259,16 @@ const SuperAdminDashboard: React.FC = () => {
         })).filter((pricing: any) => pricing.adminType && pricing.amount > 0) || []
       }
 
-      const response = await superAdminApiService.createEvent(eventData)
+      // Use createEventWithPhoto if photo is provided, otherwise use regular createEvent
+      let response
+      if (form.photo) {
+        // Import the event API for photo upload
+        const { createEventWithPhoto } = await import('../services/eventApi')
+        response = await createEventWithPhoto(eventData)
+      } else {
+        response = await superAdminApiService.createEvent(eventData)
+      }
+
       if (response.success) {
         await loadEvents()
         setShowCreateModal(false)
@@ -647,11 +658,46 @@ const SuperAdminDashboard: React.FC = () => {
         setModalEntityType('event')
         setFormData(event)
         setShowEditModal(true)
+        // Set photo preview if event has a photo
+        if (event.photoUrl) {
+          setEditPhotoPreview(event.photoUrl)
+        } else {
+          setEditPhotoPreview(null)
+        }
+        setEditPhotoFile(null)
       }
     } catch (error: any) {
       console.error('Error editing event:', error)
       alert('Failed to load event for editing')
     }
+  }
+
+  // Photo handling functions for edit modal
+  const handleEditPhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        alert('Please select an image file')
+        return
+      }
+      // Validate file size (5MB limit)
+      if (file.size > 5 * 1024 * 1024) {
+        alert('Image size must be less than 5MB')
+        return
+      }
+      
+      setEditPhotoFile(file)
+      setEditPhotoPreview(URL.createObjectURL(file))
+    }
+  }
+
+  const removeEditPhoto = () => {
+    setEditPhotoFile(null)
+    if (editPhotoPreview && editPhotoPreview !== selectedEntity?.photoUrl) {
+      URL.revokeObjectURL(editPhotoPreview)
+    }
+    setEditPhotoPreview(null)
   }
 
   // Edit submission handlers
@@ -709,12 +755,27 @@ const SuperAdminDashboard: React.FC = () => {
         targetCollege: eventType === 'college-specific' ? formData.get('targetCollege') as string || undefined : undefined,
       }
 
-      const response = await superAdminApiService.updateEvent(selectedEntity.id, eventData)
+      // Use updateEventWithPhoto if photo is provided, otherwise use regular updateEvent
+      let response
+      if (editPhotoFile) {
+        // Import the event API for photo upload
+        const { updateEventWithPhoto } = await import('../services/eventApi')
+        response = await updateEventWithPhoto(selectedEntity.id, { ...eventData, photo: editPhotoFile })
+      } else {
+        response = await superAdminApiService.updateEvent(selectedEntity.id, eventData)
+      }
+
       if (response.success) {
         await loadEvents()
         setShowEditModal(false)
         setSelectedEntity(null)
         setFormData({})
+        // Clean up photo preview
+        if (editPhotoPreview && editPhotoPreview !== selectedEntity?.photoUrl) {
+          URL.revokeObjectURL(editPhotoPreview)
+        }
+        setEditPhotoPreview(null)
+        setEditPhotoFile(null)
         alert('Event updated successfully!')
       } else {
         alert('Failed to update event: ' + (response.message || 'Unknown error'))
@@ -1808,7 +1869,7 @@ const SuperAdminDashboard: React.FC = () => {
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
-          className="bg-black border border-gray-700 rounded-xl p-6 w-full max-w-md"
+          className="bg-black border border-gray-700 rounded-xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto"
         >
           <div className="flex items-center justify-between mb-6">
             <h3 className="text-xl font-bold text-white">
@@ -2216,7 +2277,7 @@ const SuperAdminDashboard: React.FC = () => {
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
-          className="bg-black border border-gray-700 rounded-xl p-6 w-full max-w-2xl max-h-[80vh] overflow-y-auto"
+          className="bg-black border border-gray-700 rounded-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto"
         >
           <div className="flex items-center justify-between mb-6">
             <h3 className="text-xl font-bold text-white">
@@ -2227,6 +2288,12 @@ const SuperAdminDashboard: React.FC = () => {
                 setShowEditModal(false)
                 setSelectedEntity(null)
                 setFormData({})
+                // Clean up photo preview
+                if (editPhotoPreview && editPhotoPreview !== selectedEntity?.photoUrl) {
+                  URL.revokeObjectURL(editPhotoPreview)
+                }
+                setEditPhotoPreview(null)
+                setEditPhotoFile(null)
               }}
               className="p-2 text-gray-400 hover:text-white transition-colors"
             >
@@ -2341,6 +2408,52 @@ const SuperAdminDashboard: React.FC = () => {
                   rows={3}
                 />
               </div>
+              
+              {/* Event Photo Upload */}
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Event Photo (Optional)</label>
+                <div className="space-y-3">
+                  {/* Photo Preview */}
+                  {editPhotoPreview && (
+                    <div className="relative">
+                      <img 
+                        src={editPhotoPreview} 
+                        alt="Event preview" 
+                        className="w-full h-48 object-cover rounded-lg border border-gray-600"
+                      />
+                      <button
+                        type="button"
+                        onClick={removeEditPhoto}
+                        className="absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white rounded-full w-8 h-8 flex items-center justify-center text-sm font-bold"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  )}
+                  
+                  {/* Upload Button */}
+                  {!editPhotoPreview && (
+                    <div className="border-2 border-dashed border-gray-600 rounded-lg p-6 text-center hover:border-orange-500 transition-colors">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleEditPhotoChange}
+                        className="hidden"
+                        id="edit-photo-upload"
+                      />
+                      <label htmlFor="edit-photo-upload" className="cursor-pointer">
+                        <div className="text-gray-400 mb-2">
+                          <svg className="w-8 h-8 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                          </svg>
+                        </div>
+                        <p className="text-gray-400">Click to upload event photo</p>
+                        <p className="text-gray-500 text-sm mt-1">JPG, PNG, GIF up to 5MB</p>
+                      </label>
+                    </div>
+                  )}
+                </div>
+              </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-2">Date</label>
@@ -2418,6 +2531,12 @@ const SuperAdminDashboard: React.FC = () => {
                     setShowEditModal(false)
                     setSelectedEntity(null)
                     setFormData({})
+                    // Clean up photo preview
+                    if (editPhotoPreview && editPhotoPreview !== selectedEntity?.photoUrl) {
+                      URL.revokeObjectURL(editPhotoPreview)
+                    }
+                    setEditPhotoPreview(null)
+                    setEditPhotoFile(null)
                   }}
                   className="flex-1 px-4 py-2 border border-gray-600 text-gray-300 rounded-lg hover:bg-gray-600/20 transition-colors"
                 >
@@ -2860,7 +2979,7 @@ const SuperAdminDashboard: React.FC = () => {
           </header>
 
           {/* Content */}
-          <main className="p-4 lg:p-6">
+          <main className="p-2 sm:p-4 lg:p-6">
             {renderContent()}
           </main>
         </div>

@@ -349,7 +349,7 @@ export const EventFormBuilder: React.FC<EventFormBuilderProps> = ({
                 initial={{ scale: 0.9, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.9, opacity: 0 }}
-                className="bg-gray-900 rounded-xl p-6 max-w-md w-full mx-4 border border-gray-700"
+                className="bg-gray-900 rounded-xl p-6 max-w-md w-full mx-4 border border-gray-700 max-h-[90vh] overflow-y-auto"
                 onClick={(e) => e.stopPropagation()}
               >
                 <div className="flex items-center justify-between mb-4">

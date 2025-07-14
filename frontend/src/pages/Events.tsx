@@ -482,18 +482,18 @@ export function Events() {
       <div className="absolute inset-0 bg-gradient-to-br from-purple-950/20 via-black to-cyan-950/20"></div>
       
       {/* Header */}
-      <header className="relative z-10 p-6 border-b border-gray-800/50 backdrop-blur-md">
+      <header className="relative z-10 p-4 sm:p-6 border-b border-gray-800/50 backdrop-blur-md">
         <div className="container mx-auto flex justify-between items-center">
           <motion.div 
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.6 }}
-            className="flex items-center gap-3"
+            className="flex items-center gap-2 sm:gap-3"
           >
             <Link to="/portal">
               <Button variant="ghost" size="sm" className="text-gray-300 hover:text-cyan-400">
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                Dashboard
+                <ArrowLeft className="h-4 w-4 mr-1 sm:mr-2" />
+                <span className="hidden sm:inline">Dashboard</span>
               </Button>
             </Link>
           </motion.div>
@@ -502,14 +502,14 @@ export function Events() {
             initial={{ opacity: 0, x: 0 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.6, delay: 0.1 }}
-            className="flex items-center gap-3"
+            className="flex items-center gap-2 sm:gap-3"
           >
-            <div className="p-2 rounded-lg bg-gradient-to-r from-purple-500 to-cyan-500 animate-pulse-glow">
-              <Code className="h-8 w-8 text-white" />
+            <div className="p-1 sm:p-2 rounded-lg bg-gradient-to-r from-purple-500 to-cyan-500 animate-pulse-glow">
+              <Code className="h-6 w-6 sm:h-8 sm:w-8 text-white" />
             </div>
             <div>
-              <span className="text-2xl font-bold font-techie">DEVS</span>
-              <span className="text-lg text-gray-400 ml-2">Events</span>
+              <span className="text-xl sm:text-2xl font-bold font-techie">DEVS</span>
+              <span className="text-sm sm:text-lg text-gray-400 ml-1 sm:ml-2">Events</span>
             </div>
           </motion.div>
           
@@ -517,7 +517,7 @@ export function Events() {
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.6, delay: 0.2 }}
-            className="flex items-center gap-4"
+            className="flex items-center gap-2 sm:gap-4"
           >
             {/* Refresh Button */}
             <Button 
@@ -530,7 +530,7 @@ export function Events() {
               <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
             </Button>
 
-            <Link to="/card" className="text-sm text-gray-300 hover:text-cyan-400 transition-colors">
+            <Link to="/card" className="text-sm text-gray-300 hover:text-cyan-400 transition-colors hidden sm:block">
               My Card
             </Link>
             <Button 
@@ -540,7 +540,7 @@ export function Events() {
               className="border-red-500/50 text-red-400 hover:bg-red-500/10 hover:text-red-300"
             >
               <LogOut className="h-4 w-4" />
-              Logout
+              <span className="hidden sm:inline ml-1">Logout</span>
             </Button>
           </motion.div>
         </div>
@@ -569,23 +569,23 @@ export function Events() {
       </AnimatePresence>
 
       {/* Main Content */}
-      <div className="relative z-10 container mx-auto px-6 py-12">
+      <div className="relative z-10 container mx-auto px-4 sm:px-6 py-8 sm:py-12">
         {/* Header Section */}
         <motion.div
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8 }}
-          className="text-center mb-12"
+          className="text-center mb-8 sm:mb-12"
         >
-          <div className="inline-flex items-center gap-2 bg-gradient-to-r from-purple-500/10 to-cyan-500/10 rounded-full px-6 py-2 border border-purple-500/20 mb-6">
-            <Calendar className="h-5 w-5 text-purple-400" />
-            <span className="text-sm text-purple-300 font-medium">Community Events</span>
+          <div className="inline-flex items-center gap-2 bg-gradient-to-r from-purple-500/10 to-cyan-500/10 rounded-full px-4 sm:px-6 py-2 border border-purple-500/20 mb-4 sm:mb-6">
+            <Calendar className="h-4 w-4 sm:h-5 sm:w-5 text-purple-400" />
+            <span className="text-xs sm:text-sm text-purple-300 font-medium">Community Events</span>
           </div>
           
-          <h1 className="text-4xl md:text-6xl font-bold mb-6 font-techie">
+          <h1 className="text-3xl sm:text-4xl md:text-6xl font-bold mb-4 sm:mb-6 font-techie">
             Upcoming <span className="text-gradient">Events</span>
           </h1>
-          <p className="text-xl text-gray-300 max-w-3xl mx-auto mb-8">
+          <p className="text-lg sm:text-xl text-gray-300 max-w-3xl mx-auto mb-6 sm:mb-8 px-4">
             Join workshops, hackathons, and community gatherings. Connect with fellow developers and expand your skills.
           </p>
           
@@ -602,11 +602,11 @@ export function Events() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.3 }}
-          className="backdrop-glass rounded-xl p-6 border border-gray-700 mb-8"
+          className="backdrop-glass rounded-xl p-4 sm:p-6 border border-gray-700 mb-6 sm:mb-8"
         >
-          <div className="flex flex-col md:flex-row gap-4 items-center">
+          <div className="flex flex-col gap-4">
             {/* Search */}
-            <div className="flex-1 relative">
+            <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                 <Search className="h-5 w-5 text-gray-400" />
               </div>
@@ -620,7 +620,7 @@ export function Events() {
             </div>
 
             {/* Filter Buttons */}
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2 justify-center sm:justify-start">
               {[
                 { value: 'all', label: 'All Events' },
                 { value: 'upcoming', label: 'Upcoming' },
@@ -682,12 +682,12 @@ export function Events() {
                 transition={{ duration: 0.6, delay: 0.1 * index }}
                 className="relative group"
               >
-                <div className={`card-gradient rounded-2xl p-8 hover:scale-[1.02] transition-all duration-300 relative overflow-hidden ${
+                <div className={`card-gradient rounded-2xl p-4 sm:p-6 lg:p-8 hover:scale-[1.02] transition-all duration-300 relative overflow-hidden ${
                   event.isRegistered ? 'border-2 border-green-400/30' : ''
                 }`}>
-                  {/* Registration status badge */}
+                  {/* Registration status badge - moved to top of card content */}
                   {event.isRegistered && (
-                    <div className="absolute top-4 right-4 bg-green-500/20 border border-green-400/30 rounded-full px-3 py-1 flex items-center gap-1">
+                    <div className="absolute top-4 right-4 z-20 bg-green-500/20 border border-green-400/30 rounded-full px-3 py-1 flex items-center gap-1 backdrop-blur-sm">
                       <UserCheck className="h-3 w-3 text-green-400" />
                       <span className="text-xs text-green-400 font-medium">Registered</span>
                     </div>
@@ -695,7 +695,7 @@ export function Events() {
 
                   {/* Past event overlay */}
                   {isEventPast(event.date) && (
-                    <div className="absolute inset-0 bg-black/50 rounded-2xl flex items-center justify-center">
+                    <div className="absolute inset-0 bg-black/50 rounded-2xl flex items-center justify-center z-30">
                       <div className="text-center">
                         <Clock className="h-12 w-12 text-gray-400 mx-auto mb-2" />
                         <p className="text-gray-400 font-medium">Event Ended</p>
@@ -708,14 +708,40 @@ export function Events() {
                   <div className="absolute bottom-0 right-0 w-24 h-24 bg-gradient-to-tl from-cyan-400/10 to-transparent rounded-full blur-2xl"></div>
                   
                   <div className="relative z-10">
-                    <div className="flex flex-col lg:flex-row gap-8">
+                    <div className="flex flex-col lg:flex-row gap-4 sm:gap-6 lg:gap-8">
+                      {/* Event Photo */}
+                      <div className="lg:w-1/3 mb-4 lg:mb-0">
+                        <div className="relative rounded-xl overflow-hidden bg-gray-800">
+                          <img
+                            src={event.photoUrl || '/images/devs.jpg'}
+                            alt={event.title}
+                            className="w-full h-40 sm:h-48 lg:h-64 object-cover"
+                            onError={(e) => {
+                              e.currentTarget.src = '/images/devs.jpg'
+                            }}
+                          />
+                          {/* Event type badge */}
+                          <div className="absolute top-3 left-3 z-10">
+                            <span className="bg-black/70 text-white text-xs px-2 py-1 rounded-full font-medium">
+                              {event.eventType === 'open-to-all' ? 'Open to All' : 'College Specific'}
+                            </span>
+                          </div>
+                          {/* Category badge */}
+                          <div className="absolute top-3 right-3 z-10">
+                            <span className="bg-cyan-500/80 text-white text-xs px-2 py-1 rounded-full font-medium capitalize">
+                              {event.category}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                      
                       <div className="flex-1">
                         {/* Event header */}
-                        <div className="mb-6">
-                          <h3 className="text-2xl lg:text-3xl font-bold font-techie mb-2">{event.title}</h3>
+                        <div className="mb-4 sm:mb-6">
+                          <h3 className="text-xl sm:text-2xl lg:text-3xl font-bold font-techie mb-2">{event.title}</h3>
                           
                           {/* Event meta info */}
-                          <div className="grid md:grid-cols-2 gap-4 text-gray-300">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 text-gray-300">
                             <div className="flex items-center gap-2">
                               <Calendar className="h-5 w-5 text-cyan-400" />
                               <span>{new Date(event.date).toLocaleDateString('en-US', {
@@ -781,7 +807,7 @@ export function Events() {
                         </p>
 
                         {/* Action buttons */}
-                        <div className="flex flex-wrap gap-3">
+                        <div className="flex flex-col sm:flex-row flex-wrap gap-3">
                           {canRegister(event) ? (
                             <Button 
                               variant="gradient" 

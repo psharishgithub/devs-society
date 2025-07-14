@@ -74,12 +74,15 @@ export interface Event {
   title: string
   description: string
   date: string
+  time?: string
   location: string
   maxAttendees?: number
   attendees: User[]
   isActive: boolean
   createdAt: string
   eventType?: string
+  category?: string
+  photoUrl?: string
   registrationCount?: number
   waitlistCount?: number
   isRegistered?: boolean

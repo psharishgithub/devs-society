@@ -145,6 +145,36 @@ export const storageService = {
         error: 'Failed to update profile photo'
       }
     }
+  },
+
+  uploadEventPhoto: async (fileBuffer: Buffer, fileName: string, eventId: string): Promise<UploadResult> => {
+    try {
+      const fileExt = fileName.split('.').pop()?.toLowerCase()
+      const allowedExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp']
+      if (!fileExt || !allowedExtensions.includes(fileExt)) {
+        return { success: false, error: 'Invalid file type. Only JPG, PNG, GIF, and WebP are allowed.' }
+      }
+      if (fileBuffer.length > 5 * 1024 * 1024) {
+        return { success: false, error: 'File size must be less than 5MB' }
+      }
+      const uniqueFileName = `event-${eventId}-${Date.now()}.${fileExt}`
+      const { data, error } = await supabase.storage
+        .from('profile-photos')
+        .upload(uniqueFileName, fileBuffer, {
+          contentType: `image/${fileExt}`,
+          cacheControl: '3600',
+          upsert: false
+        })
+      if (error) {
+        return { success: false, error: error.message || 'Failed to upload image' }
+      }
+      const { data: urlData } = supabase.storage
+        .from('profile-photos')
+        .getPublicUrl(uniqueFileName)
+      return { success: true, url: urlData.publicUrl }
+    } catch (error) {
+      return { success: false, error: 'Failed to upload event photo' }
+    }
   }
 }
 

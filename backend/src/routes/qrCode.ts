@@ -444,13 +444,34 @@ router.post('/verify-member',
 
         // If eventId is provided, check registration for that event
         if (eventId) {
-          const { data: eventData, error: eventError } = await supabase
-            .from('events')
-            .select('*')
-            .eq('id', eventId)
-            .single()
-
-          if (eventError || !eventData) {
+          // Use EventService to get properly mapped event data
+          const EventService = require('../services/eventService').default
+          try {
+            event = await EventService.findById(eventId)
+            
+            if (!event) {
+              return res.status(404).json({ 
+                success: false, 
+                message: 'Event not found',
+                qrCodeType: 'member_card',
+                member: {
+                  id: user.id,
+                  memberId: user.member_id,
+                  fullName: user.full_name,
+                  email: user.email,
+                  college: user.college,
+                  batchYear: user.batch_year,
+                  role: user.role,
+                  createdAt: user.created_at
+                },
+                eventRegistrations: [],
+                currentEvent: null,
+                currentRegistration: null,
+                status: 'not_registered'
+              })
+            }
+          } catch (eventError) {
+            console.error('Error fetching event:', eventError)
             return res.status(404).json({ 
               success: false, 
               message: 'Event not found',
@@ -471,8 +492,6 @@ router.post('/verify-member',
               status: 'not_registered'
             })
           }
-
-          event = eventData
 
           // Check if user is registered for this event
           const { data: registrationData, error: registrationError } = await supabase
@@ -497,23 +516,39 @@ router.post('/verify-member',
 
         let eventRegistrations: any[] = []
         if (!registrationsError && allRegistrations && allRegistrations.length > 0) {
-          const eventIds = allRegistrations.map(reg => reg.event_id)
-          const { data: eventsData, error: eventsError } = await supabase
-            .from('events')
-            .select('id, title, date, time, location')
-            .in('id', eventIds)
-          const eventsMap = eventsData ? new Map(eventsData.map(event => [event.id, event])) : new Map()
-          eventRegistrations = allRegistrations.map(reg => ({
-            id: reg.id,
-            eventId: reg.event_id,
-            eventTitle: eventsMap.get(reg.event_id)?.title || '',
-            eventDate: eventsMap.get(reg.event_id)?.date || '',
-            eventTime: eventsMap.get(reg.event_id)?.time || '',
-            eventLocation: eventsMap.get(reg.event_id)?.location || '',
-            status: reg.status,
-            registeredAt: reg.registered_at,
-            paymentVerified: reg.payment_verified
-          }))
+          // Use EventService to get properly mapped event data
+          const EventService = require('../services/eventService').default
+          const eventRegistrationsPromises = allRegistrations.map(async (reg) => {
+            try {
+              const event = await EventService.findById(reg.event_id)
+              return {
+                id: reg.id,
+                eventId: reg.event_id,
+                eventTitle: event?.title || '',
+                eventDate: event?.date || '',
+                eventTime: event?.time || '',
+                eventLocation: event?.location || '',
+                status: reg.status,
+                registeredAt: reg.registered_at,
+                paymentVerified: reg.payment_verified
+              }
+            } catch (error) {
+              console.error(`Error fetching event ${reg.event_id}:`, error)
+              return {
+                id: reg.id,
+                eventId: reg.event_id,
+                eventTitle: 'Unknown Event',
+                eventDate: '',
+                eventTime: '',
+                eventLocation: '',
+                status: reg.status,
+                registeredAt: reg.registered_at,
+                paymentVerified: reg.payment_verified
+              }
+            }
+          })
+          
+          eventRegistrations = await Promise.all(eventRegistrationsPromises)
         }
 
         // Return member verification result with all fields

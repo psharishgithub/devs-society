@@ -26,6 +26,7 @@ export interface IEvent {
     amount: number
     adminId?: string
   }>
+  photoUrl?: string
   isActive: boolean
   createdAt: string
   updatedAt: string
@@ -73,6 +74,7 @@ export interface CreateEventData {
     amount: number
     adminId?: string
   }>
+  photoUrl?: string
 }
 
 export interface UpdateEventData {
@@ -100,6 +102,7 @@ export interface UpdateEventData {
     amount: number
     adminId?: string
   }>
+  photoUrl?: string
   isActive?: boolean
 }
 
@@ -136,6 +139,7 @@ class EventService {
           is_paid: eventData.isPaid || false,
           price: eventData.isPaid ? (eventData.price || 0) : 0,
           admin_pricing: eventData.adminPricing || [],
+          photo_url: eventData.photoUrl || null,
           is_active: true
         })
         .select()
@@ -207,6 +211,7 @@ class EventService {
         if (updateData.organizer.name !== undefined) updateObj.organizer_name = updateData.organizer.name
         if (updateData.organizer.contact !== undefined) updateObj.organizer_contact = updateData.organizer.contact
       }
+      if (updateData.photoUrl !== undefined) updateObj.photo_url = updateData.photoUrl
 
       const { data, error } = await this.supabase
         .from('events')
@@ -782,6 +787,7 @@ class EventService {
       isPaid: dbEvent.is_paid || isTempPaidEvent || hasPricingInfo || extractedPrice > 0, // Use database value first
       price: dbEvent.price || tempPrice || extractedPrice, // Use database value first
       adminPricing: dbEvent.admin_pricing || [], // Read from database
+      photoUrl: dbEvent.photo_url || undefined,
       isActive: dbEvent.is_active,
       createdAt: dbEvent.created_at,
       updatedAt: dbEvent.updated_at

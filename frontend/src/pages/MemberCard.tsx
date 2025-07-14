@@ -275,9 +275,7 @@ export function MemberCard() {
             transition={{ duration: 0.6, delay: 0.1 }}
             className="flex items-center gap-2 sm:gap-3"
           >
-            <div className="p-1 sm:p-2 rounded-lg bg-gradient-to-r from-purple-500 to-cyan-500 animate-pulse-glow">
-              <QrCode className="h-6 w-6 sm:h-8 sm:w-8 text-white" />
-            </div>
+            
             <div>
               <span className="text-xl sm:text-2xl font-bold font-techie">DEVS</span>
               <span className="text-sm sm:text-lg text-gray-400 ml-1 sm:ml-2">Member Card</span>
@@ -355,9 +353,7 @@ export function MemberCard() {
                     {/* Card Header */}
                     <div className="relative z-10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 sm:gap-0 mb-6 sm:mb-8">
                       <div className="flex items-center gap-2 sm:gap-3">
-                        <div className="p-1 sm:p-2 rounded-lg bg-gradient-to-r from-cyan-500 to-purple-500">
-                          <Code className="h-6 w-6 sm:h-8 sm:w-8 text-white" />
-                        </div>
+                     
                         <div>
                           <h1 className="text-xl sm:text-2xl font-bold font-techie text-white">DEVS SOCIETY</h1>
                           <p className="text-cyan-300 text-xs sm:text-sm">Digital Member Card</p>

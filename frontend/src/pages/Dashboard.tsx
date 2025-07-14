@@ -209,13 +209,16 @@ export function Dashboard() {
             transition={{ duration: 0.6 }}
             className="flex items-center gap-2 sm:gap-3"
           >
-            <div className="p-1 sm:p-2 rounded-lg bg-gradient-to-r from-purple-500 to-cyan-500 animate-pulse-glow">
-              <Code className="h-6 w-6 sm:h-8 sm:w-8 text-white" />
+            {/* Logo and Title */}
+            <div className="flex flex-col items-start sm:items-start">
+              <span className="text-3xl sm:text-5xl font-bold font-techie tracking-tight leading-none text-white" style={{letterSpacing: '-0.04em'}}>
+                DEVS
+              </span>
+              <span className="text-xs sm:text-base font-techie tracking-widest text-gray-300 mt-1 ml-1 sm:ml-0" style={{letterSpacing: '0.2em'}}>
+                CODE. COFFEE. REPEAT ...
+              </span>
             </div>
-            <div>
-              <span className="text-xl sm:text-2xl font-bold font-techie">DEVS</span>
-              <span className="text-sm sm:text-lg text-gray-400 ml-1 sm:ml-2">Portal</span>
-            </div>
+            <span className="text-sm sm:text-lg text-gray-400 ml-1 sm:ml-2 hidden">Portal</span>
           </motion.div>
           
           {/* Mobile Menu Button */}

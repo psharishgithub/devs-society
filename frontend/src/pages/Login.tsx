@@ -113,13 +113,13 @@ export function Login() {
             transition={{ duration: 0.6 }}
             className="flex items-center gap-3"
           >
-            <div className="p-2 rounded-lg bg-gradient-to-r from-cyan-500 to-purple-500 animate-pulse-glow">
-              <Code className="h-8 w-8 text-white" />
+            <div className="flex flex-col items-start sm:items-start">
+              <span className="text-3xl sm:text-5xl font-bold font-techie tracking-tight leading-none text-white" style={{letterSpacing: '-0.04em'}}>
+                DEVS
+              </span>
+            
             </div>
-            <div>
-              <span className="text-2xl font-bold font-techie">DEVS</span>
-              <span className="text-lg text-gray-400 ml-2">Portal</span>
-            </div>
+            <span className="text-sm sm:text-lg text-gray-400 ml-1 sm:ml-2">Portal</span>
           </motion.div>
           <motion.div 
             initial={{ opacity: 0, x: 20 }}
@@ -156,10 +156,14 @@ export function Login() {
             
             <div className="relative z-10">
               <div className="text-center mb-8">
-                <div className="inline-flex items-center justify-center ">
-                  <img src="/images/devslogo.png" alt="DEVS Logo" className="h-12 w-16 border-2 border-white rounded-full" />
+                <div className="flex flex-col items-center justify-center mb-8">
+                  <span className="text-4xl sm:text-5xl font-bold font-techie tracking-tight leading-none text-white" style={{letterSpacing: '-0.04em'}}>
+                    DEVS
+                  </span>
+                  <span className="text-xs sm:text-base font-techie tracking-widest text-gray-300 mt-1" style={{letterSpacing: '0.2em'}}>
+                    CODE. COFFEE. REPEAT ...
+                  </span>
                 </div>
-                
                 <motion.h1 
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}

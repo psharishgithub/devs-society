@@ -6,7 +6,7 @@ import {
   Menu, X, User, Mail, Phone, GraduationCap, Clock, Shield,
   Plus, Edit, Trash2, Eye, Search, Filter, Bell, TrendingUp,
   ChevronRight, Activity, UserCheck, MapPin, Archive,
-  RotateCcw, UserX, AlertTriangle, CheckCircle, XCircle, QrCode, AlertCircle
+  RotateCcw, UserX, AlertTriangle, CheckCircle, XCircle, QrCode, AlertCircle, BookOpen
 } from 'lucide-react'
 import { 
   superAdminApiService, 
@@ -24,6 +24,7 @@ const SuperAdminDashboard: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [admin, setAdmin] = useState<Admin | null>(null)
   const [stats, setStats] = useState<SuperAdminStats | null>(null)
+  const [analytics, setAnalytics] = useState<any>(null)
   const [colleges, setColleges] = useState<College[]>([])
   const [admins, setAdmins] = useState<Admin[]>([])
   const [users, setUsers] = useState<any[]>([])
@@ -73,22 +74,55 @@ const SuperAdminDashboard: React.FC = () => {
 
   const loadSuperAdminData = async () => {
     try {
+      setIsLoading(true)
+      console.log('🔄 Loading SuperAdmin data...')
+      
+      // Check authentication first
+      const adminToken = localStorage.getItem('adminToken')
+      const adminUser = localStorage.getItem('adminUser')
+      
+      if (!adminToken || !adminUser) {
+        console.error('❌ No authentication token found')
+        return
+      }
+      
+      console.log('✅ Authentication token found')
+      
       const [profileResponse, statsResponse] = await Promise.all([
         superAdminApiService.getDashboardStats(),
         superAdminApiService.getAnalytics()
       ])
 
+      console.log('📊 Dashboard response:', profileResponse)
+      console.log('📈 Analytics response:', statsResponse)
+
       if (profileResponse.success) {
         setStats(profileResponse.stats)
+        console.log('✅ Dashboard stats loaded:', profileResponse.stats)
+      } else {
+        console.error('❌ Failed to load dashboard stats:', profileResponse.message)
+      }
+
+      if (statsResponse.success) {
+        setAnalytics(statsResponse.analytics)
+        console.log('✅ Analytics loaded successfully:', statsResponse.analytics)
+      } else {
+        console.error('❌ Failed to load analytics:', statsResponse.message)
       }
 
       // Get admin info from localStorage
-      const adminData = localStorage.getItem('adminUser')
-      if (adminData) {
-        setAdmin(JSON.parse(adminData))
-      }
+      if (adminUser) {
+        try {
+          const adminData = JSON.parse(adminUser)
+          setAdmin(adminData)
+          console.log('✅ Admin data loaded:', adminData.fullName)
     } catch (error) {
-      console.error('Error loading super admin data:', error)
+          console.error('❌ Error parsing admin data:', error)
+        }
+      }
+    } catch (error: any) {
+      console.error('❌ Error loading super admin data:', error)
+      console.error('Error details:', error.response?.data || error.message)
     } finally {
       setIsLoading(false)
     }
@@ -888,22 +922,47 @@ const SuperAdminDashboard: React.FC = () => {
     { id: 'attendance', icon: Calendar, label: 'Attendance', color: 'yellow' },
     { id: 'analytics', icon: TrendingUp, label: 'Analytics', color: 'pink' },
     { id: 'participation', icon: Users, label: 'Participation', color: 'indigo' },
+    { id: 'internal-booking', icon: BookOpen, label: 'Internal Booking', color: 'orange' },
     { id: 'settings', icon: Settings, label: 'Settings', color: 'gray' },
   ]
 
   const renderOverview = () => (
     <div className="space-y-6">
+      {/* Welcome Section */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="bg-gradient-to-r from-purple-600/20 to-cyan-600/20 border border-purple-500/20 rounded-xl p-6"
+      >
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-2xl font-bold text-white mb-2">
+              Welcome back, {admin?.fullName || 'Super Admin'}! 👋
+            </h2>
+            <p className="text-gray-300">
+              Here's what's happening across all colleges in the DEVS Society portal
+            </p>
+          </div>
+          <div className="text-right">
+            <p className="text-sm text-gray-400">Last updated</p>
+            <p className="text-sm text-white">{new Date().toLocaleString()}</p>
+          </div>
+        </div>
+      </motion.div>
+
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-gradient-to-r from-cyan-600/20 to-cyan-800/20 border border-cyan-500/20 rounded-xl p-6"
+          className="bg-gradient-to-r from-cyan-600/20 to-cyan-800/20 border border-cyan-500/20 rounded-xl p-6 hover:border-cyan-400/50 transition-colors cursor-pointer"
+          onClick={() => setActiveTab('colleges')}
         >
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-cyan-300 text-sm">Total Colleges</p>
+              <p className="text-cyan-300 text-sm font-medium">Total Colleges</p>
               <p className="text-3xl font-bold text-white">{stats?.totalColleges || 0}</p>
+              <p className="text-xs text-cyan-200 mt-1">Active institutions</p>
             </div>
             <Building className="w-8 h-8 text-cyan-400" />
           </div>
@@ -913,12 +972,14 @@ const SuperAdminDashboard: React.FC = () => {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
-          className="bg-gradient-to-r from-green-600/20 to-green-800/20 border border-green-500/20 rounded-xl p-6"
+          className="bg-gradient-to-r from-green-600/20 to-green-800/20 border border-green-500/20 rounded-xl p-6 hover:border-green-400/50 transition-colors cursor-pointer"
+          onClick={() => setActiveTab('admins')}
         >
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-green-300 text-sm">Total Admins</p>
+              <p className="text-green-300 text-sm font-medium">Total Admins</p>
               <p className="text-3xl font-bold text-white">{stats?.totalAdmins || 0}</p>
+              <p className="text-xs text-green-200 mt-1">Active administrators</p>
             </div>
             <Shield className="w-8 h-8 text-green-400" />
           </div>
@@ -928,12 +989,14 @@ const SuperAdminDashboard: React.FC = () => {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
-          className="bg-gradient-to-r from-purple-600/20 to-purple-800/20 border border-purple-500/20 rounded-xl p-6"
+          className="bg-gradient-to-r from-purple-600/20 to-purple-800/20 border border-purple-500/20 rounded-xl p-6 hover:border-purple-400/50 transition-colors cursor-pointer"
+          onClick={() => setActiveTab('users')}
         >
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-purple-300 text-sm">Total Users</p>
+              <p className="text-purple-300 text-sm font-medium">Total Users</p>
               <p className="text-3xl font-bold text-white">{stats?.totalUsers || 0}</p>
+              <p className="text-xs text-purple-200 mt-1">Registered members</p>
             </div>
             <Users className="w-8 h-8 text-purple-400" />
           </div>
@@ -943,12 +1006,14 @@ const SuperAdminDashboard: React.FC = () => {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3 }}
-          className="bg-gradient-to-r from-orange-600/20 to-orange-800/20 border border-orange-500/20 rounded-xl p-6"
+          className="bg-gradient-to-r from-orange-600/20 to-orange-800/20 border border-orange-500/20 rounded-xl p-6 hover:border-orange-400/50 transition-colors cursor-pointer"
+          onClick={() => setActiveTab('events')}
         >
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-orange-300 text-sm">Total Events</p>
+              <p className="text-orange-300 text-sm font-medium">Total Events</p>
               <p className="text-3xl font-bold text-white">{stats?.totalEvents || 0}</p>
+              <p className="text-xs text-orange-200 mt-1">Active events</p>
             </div>
             <Calendar className="w-8 h-8 text-orange-400" />
           </div>
@@ -958,7 +1023,10 @@ const SuperAdminDashboard: React.FC = () => {
       {/* College-wise Overview */}
       <div className="bg-white/5 border border-gray-700 rounded-xl p-6">
         <div className="flex items-center justify-between mb-6">
+          <div>
           <h3 className="text-xl font-bold text-white">College Overview</h3>
+            <p className="text-gray-400 text-sm">Real-time data from all registered colleges</p>
+          </div>
           <button
             onClick={() => {
               setCreateType('college')
@@ -971,14 +1039,15 @@ const SuperAdminDashboard: React.FC = () => {
           </button>
         </div>
         
+        {stats?.collegeWiseData && stats.collegeWiseData.length > 0 ? (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {stats?.collegeWiseData?.map((item, index) => (
+            {stats.collegeWiseData.map((item, index) => (
             <motion.div
               key={index}
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: index * 0.1 }}
-              className="bg-white/5 border border-gray-600 rounded-lg p-4"
+                className="bg-white/5 border border-gray-600 rounded-lg p-4 hover:border-gray-500 transition-colors"
             >
               <div className="flex items-center justify-between mb-3">
                 <div>
@@ -986,7 +1055,9 @@ const SuperAdminDashboard: React.FC = () => {
                   <p className="text-sm text-gray-400">{item.college.code}</p>
                 </div>
                 <div className="text-right">
-                  <div className="text-sm text-cyan-300">{item.admin ? 'Active Admin' : 'No Admin'}</div>
+                    <div className={`text-sm ${item.admin ? 'text-green-300' : 'text-yellow-300'}`}>
+                      {item.admin ? 'Active Admin' : 'No Admin'}
+                    </div>
                   {item.admin && <div className="text-xs text-gray-400">{item.admin}</div>}
                 </div>
               </div>
@@ -1004,15 +1075,35 @@ const SuperAdminDashboard: React.FC = () => {
             </motion.div>
           ))}
         </div>
+        ) : (
+          <div className="text-center py-8">
+            <Building className="w-12 h-12 mx-auto text-gray-400 mb-4" />
+            <p className="text-gray-400 mb-2">No college data available</p>
+            <p className="text-sm text-gray-500">Add your first college to get started</p>
+          </div>
+        )}
       </div>
 
       {/* Quick Actions */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <h3 className="text-xl font-bold text-white">Quick Actions</h3>
+          <button
+            onClick={loadSuperAdminData}
+            disabled={isLoading}
+            className="flex items-center gap-2 px-3 py-2 bg-gray-600/20 text-gray-300 rounded-lg hover:bg-gray-600/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <RotateCcw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+            {isLoading ? 'Refreshing...' : 'Refresh Data'}
+          </button>
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <motion.button
           whileHover={{ scale: 1.02 }}
           whileTap={{ scale: 0.98 }}
           onClick={() => setActiveTab('colleges')}
-          className="bg-gradient-to-r from-cyan-600/20 to-cyan-800/20 border border-cyan-500/20 rounded-xl p-6 text-left group"
+            className="bg-gradient-to-r from-cyan-600/20 to-cyan-800/20 border border-cyan-500/20 rounded-xl p-6 text-left group hover:border-cyan-400/50 transition-colors"
         >
           <Building className="w-8 h-8 text-cyan-400 mb-3" />
           <h3 className="text-lg font-semibold text-white mb-2">Manage Colleges</h3>
@@ -1027,7 +1118,7 @@ const SuperAdminDashboard: React.FC = () => {
           whileHover={{ scale: 1.02 }}
           whileTap={{ scale: 0.98 }}
           onClick={() => setActiveTab('admins')}
-          className="bg-gradient-to-r from-green-600/20 to-green-800/20 border border-green-500/20 rounded-xl p-6 text-left group"
+            className="bg-gradient-to-r from-green-600/20 to-green-800/20 border border-green-500/20 rounded-xl p-6 text-left group hover:border-green-400/50 transition-colors"
         >
           <Shield className="w-8 h-8 text-green-400 mb-3" />
           <h3 className="text-lg font-semibold text-white mb-2">Manage Admins</h3>
@@ -1042,7 +1133,7 @@ const SuperAdminDashboard: React.FC = () => {
           whileHover={{ scale: 1.02 }}
           whileTap={{ scale: 0.98 }}
           onClick={() => setActiveTab('analytics')}
-          className="bg-gradient-to-r from-purple-600/20 to-purple-800/20 border border-purple-500/20 rounded-xl p-6 text-left group"
+            className="bg-gradient-to-r from-purple-600/20 to-purple-800/20 border border-purple-500/20 rounded-xl p-6 text-left group hover:border-purple-400/50 transition-colors"
         >
           <TrendingUp className="w-8 h-8 text-purple-400 mb-3" />
           <h3 className="text-lg font-semibold text-white mb-2">View Analytics</h3>
@@ -1052,6 +1143,22 @@ const SuperAdminDashboard: React.FC = () => {
             <ChevronRight className="w-4 h-4 ml-1" />
           </div>
         </motion.button>
+
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={() => navigate('/superadmin/internal-booking')}
+            className="bg-gradient-to-r from-orange-600/20 to-orange-800/20 border border-orange-500/20 rounded-xl p-6 text-left group hover:border-orange-400/50 transition-colors"
+          >
+            <BookOpen className="w-8 h-8 text-orange-400 mb-3" />
+            <h3 className="text-lg font-semibold text-white mb-2">Internal Booking</h3>
+            <p className="text-gray-400 text-sm mb-4">Register users for events internally</p>
+            <div className="flex items-center text-orange-300 group-hover:text-orange-200">
+              <span className="text-sm">Go to booking</span>
+              <ChevronRight className="w-4 h-4 ml-1" />
+            </div>
+          </motion.button>
+        </div>
       </div>
     </div>
   )
@@ -1463,119 +1570,154 @@ const SuperAdminDashboard: React.FC = () => {
   )
 
   const renderAnalytics = () => (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Analytics Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-white">Analytics & Reporting</h2>
-          <p className="text-gray-400">Comprehensive insights across the DEVS Society platform</p>
+          <h2 className="text-xl sm:text-2xl font-bold text-white">Analytics & Reporting</h2>
+          <p className="text-sm sm:text-base text-gray-400">Comprehensive insights across the DEVS Society platform</p>
         </div>
-        <button className="flex items-center gap-2 px-4 py-2 bg-pink-600 text-white rounded-lg hover:bg-pink-700 transition-colors">
-          <TrendingUp className="w-4 h-4" />
-          Export Report
+        <button 
+          onClick={loadSuperAdminData}
+          className="flex items-center justify-center gap-2 px-3 sm:px-4 py-2 bg-pink-600 text-white rounded-lg hover:bg-pink-700 transition-colors text-sm sm:text-base"
+        >
+          <RotateCcw className="w-4 h-4" />
+          <span className="hidden sm:inline">Refresh Analytics</span>
+          <span className="sm:hidden">Refresh</span>
         </button>
       </div>
 
       {/* Key Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="bg-gradient-to-r from-blue-600/20 to-blue-800/20 border border-blue-500/20 rounded-xl p-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-gradient-to-r from-blue-600/20 to-blue-800/20 border border-blue-500/20 rounded-xl p-4 sm:p-6"
+        >
           <div className="flex items-center justify-between">
-            <div>
-              <p className="text-blue-300 text-sm">Growth Rate</p>
-              <p className="text-3xl font-bold text-white">+12.5%</p>
-              <p className="text-xs text-gray-400">vs last month</p>
+            <div className="flex-1 min-w-0">
+              <p className="text-blue-300 text-xs sm:text-sm">User Growth</p>
+              <p className="text-2xl sm:text-3xl font-bold text-white truncate">
+                {analytics?.growth?.userGrowthRate ? `+${analytics.growth.userGrowthRate}%` : '0%'}
+              </p>
+              <p className="text-xs text-gray-400 truncate">
+                {analytics?.growth?.newUsersThisMonth || 0} new users this month
+              </p>
             </div>
-            <TrendingUp className="w-8 h-8 text-blue-400" />
+            <TrendingUp className="w-6 h-6 sm:w-8 sm:h-8 text-blue-400 flex-shrink-0 ml-2" />
           </div>
-        </div>
+        </motion.div>
 
-        <div className="bg-gradient-to-r from-green-600/20 to-green-800/20 border border-green-500/20 rounded-xl p-6">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+          className="bg-gradient-to-r from-green-600/20 to-green-800/20 border border-green-500/20 rounded-xl p-4 sm:p-6"
+        >
           <div className="flex items-center justify-between">
-            <div>
-              <p className="text-green-300 text-sm">Active Users</p>
-              <p className="text-3xl font-bold text-white">{Math.floor((stats?.totalUsers || 0) * 0.75)}</p>
-              <p className="text-xs text-gray-400">75% of total</p>
+            <div className="flex-1 min-w-0">
+              <p className="text-green-300 text-xs sm:text-sm">Active Users</p>
+              <p className="text-2xl sm:text-3xl font-bold text-white truncate">
+                {analytics?.engagement?.activeUsers || Math.floor((stats?.totalUsers || 0) * 0.75)}
+              </p>
+              <p className="text-xs text-gray-400 truncate">
+                {analytics?.engagement?.totalRegistrations || 0} total registrations
+              </p>
             </div>
-            <Activity className="w-8 h-8 text-green-400" />
+            <Activity className="w-6 h-6 sm:w-8 sm:h-8 text-green-400 flex-shrink-0 ml-2" />
           </div>
-        </div>
+        </motion.div>
 
-        <div className="bg-gradient-to-r from-purple-600/20 to-purple-800/20 border border-purple-500/20 rounded-xl p-6">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          className="bg-gradient-to-r from-purple-600/20 to-purple-800/20 border border-purple-500/20 rounded-xl p-4 sm:p-6"
+        >
           <div className="flex items-center justify-between">
-            <div>
-              <p className="text-purple-300 text-sm">Event Participation</p>
-              <p className="text-3xl font-bold text-white">89%</p>
-              <p className="text-xs text-gray-400">average rate</p>
+            <div className="flex-1 min-w-0">
+              <p className="text-purple-300 text-xs sm:text-sm">Participation Rate</p>
+              <p className="text-2xl sm:text-3xl font-bold text-white truncate">
+                {analytics?.engagement?.averageParticipationRate || '0'}%
+              </p>
+              <p className="text-xs text-gray-400 truncate">average across events</p>
             </div>
-            <UserCheck className="w-8 h-8 text-purple-400" />
+            <UserCheck className="w-6 h-6 sm:w-8 sm:h-8 text-purple-400 flex-shrink-0 ml-2" />
           </div>
-        </div>
+        </motion.div>
 
-        <div className="bg-gradient-to-r from-orange-600/20 to-orange-800/20 border border-orange-500/20 rounded-xl p-6">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className="bg-gradient-to-r from-orange-600/20 to-orange-800/20 border border-orange-500/20 rounded-xl p-4 sm:p-6"
+        >
           <div className="flex items-center justify-between">
-            <div>
-              <p className="text-orange-300 text-sm">Platform Health</p>
-              <p className="text-3xl font-bold text-white">95%</p>
-              <p className="text-xs text-gray-400">uptime</p>
+            <div className="flex-1 min-w-0">
+              <p className="text-orange-300 text-xs sm:text-sm">Platform Health</p>
+              <p className="text-2xl sm:text-3xl font-bold text-white truncate">
+                {analytics?.engagement?.platformHealth || 95}%
+              </p>
+              <p className="text-xs text-gray-400 truncate">system uptime</p>
             </div>
-            <CheckCircle className="w-8 h-8 text-orange-400" />
+            <CheckCircle className="w-6 h-6 sm:w-8 sm:h-8 text-orange-400 flex-shrink-0 ml-2" />
           </div>
-        </div>
+        </motion.div>
       </div>
 
       {/* College Performance */}
-      <div className="bg-white/5 border border-gray-700 rounded-xl p-6">
-        <h3 className="text-xl font-bold text-white mb-6">College Performance Metrics</h3>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="bg-white/5 border border-gray-700 rounded-xl p-4 sm:p-6">
+        <h3 className="text-lg sm:text-xl font-bold text-white mb-4 sm:mb-6">College Performance Metrics</h3>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
           {stats?.collegeWiseData?.map((item, index) => (
-            <div key={index} className="bg-white/5 border border-gray-600 rounded-lg p-4">
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <h4 className="font-semibold text-white">{item.college.name}</h4>
-                  <p className="text-sm text-gray-400">{item.college.code}</p>
+            <div key={index} className="bg-white/5 border border-gray-600 rounded-lg p-3 sm:p-4">
+              <div className="flex items-center justify-between mb-3 sm:mb-4">
+                <div className="flex-1 min-w-0">
+                  <h4 className="font-semibold text-white text-sm sm:text-base truncate">{item.college.name}</h4>
+                  <p className="text-xs sm:text-sm text-gray-400">{item.college.code}</p>
                 </div>
-                <div className="text-right">
-                  <div className="text-sm text-cyan-300">{item.admin ? 'Managed' : 'Unmanaged'}</div>
+                <div className="text-right flex-shrink-0 ml-2">
+                  <div className="text-xs sm:text-sm text-cyan-300">{item.admin ? 'Managed' : 'Unmanaged'}</div>
                 </div>
               </div>
               
-              <div className="space-y-3">
+              <div className="space-y-2 sm:space-y-3">
                 <div className="flex justify-between items-center">
-                  <span className="text-gray-300">Users</span>
+                  <span className="text-gray-300 text-xs sm:text-sm">Users</span>
                   <div className="flex items-center gap-2">
-                    <div className="w-24 bg-gray-700 rounded-full h-2">
+                    <div className="w-16 sm:w-24 bg-gray-700 rounded-full h-2">
                       <div 
                         className="bg-purple-500 h-2 rounded-full" 
                         style={{ width: `${Math.min((item.users / Math.max(...(stats?.collegeWiseData?.map(d => d.users) || [1]))) * 100, 100)}%` }}
                       ></div>
                     </div>
-                    <span className="text-white font-medium w-8">{item.users}</span>
+                    <span className="text-white font-medium w-6 sm:w-8 text-xs sm:text-sm">{item.users}</span>
                   </div>
                 </div>
                 
                 <div className="flex justify-between items-center">
-                  <span className="text-gray-300">Events</span>
+                  <span className="text-gray-300 text-xs sm:text-sm">Events</span>
                   <div className="flex items-center gap-2">
-                    <div className="w-24 bg-gray-700 rounded-full h-2">
+                    <div className="w-16 sm:w-24 bg-gray-700 rounded-full h-2">
                       <div 
                         className="bg-green-500 h-2 rounded-full" 
                         style={{ width: `${Math.min((item.events / Math.max(...(stats?.collegeWiseData?.map(d => d.events) || [1]))) * 100, 100)}%` }}
                       ></div>
                     </div>
-                    <span className="text-white font-medium w-8">{item.events}</span>
+                    <span className="text-white font-medium w-6 sm:w-8 text-xs sm:text-sm">{item.events}</span>
                   </div>
                 </div>
                 
                 <div className="flex justify-between items-center">
-                  <span className="text-gray-300">Engagement</span>
+                  <span className="text-gray-300 text-xs sm:text-sm">Engagement</span>
                   <div className="flex items-center gap-2">
-                    <div className="w-24 bg-gray-700 rounded-full h-2">
+                    <div className="w-16 sm:w-24 bg-gray-700 rounded-full h-2">
                       <div 
                         className="bg-cyan-500 h-2 rounded-full" 
                         style={{ width: `${Math.min(((item.users + item.events) / 20) * 100, 100)}%` }}
                       ></div>
                     </div>
-                    <span className="text-cyan-300 text-sm">{Math.min(Math.round(((item.users + item.events) / 20) * 100), 100)}%</span>
+                    <span className="text-cyan-300 text-xs sm:text-sm">{Math.min(Math.round(((item.users + item.events) / 20) * 100), 100)}%</span>
                   </div>
                 </div>
               </div>
@@ -1584,134 +1726,241 @@ const SuperAdminDashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* Recent Activity */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white/5 border border-gray-700 rounded-xl p-6">
-          <h3 className="text-xl font-bold text-white mb-6">Recent Activity</h3>
-          <div className="space-y-4">
-            <div className="flex items-start gap-3">
-              <div className="w-8 h-8 bg-green-600/20 rounded-full flex items-center justify-center mt-1">
-                <UserCheck className="w-4 h-4 text-green-400" />
+      {/* Top Performing Events */}
+      {analytics?.topEvents && analytics.topEvents.length > 0 && (
+        <div className="bg-white/5 border border-gray-700 rounded-xl p-4 sm:p-6">
+          <h3 className="text-lg sm:text-xl font-bold text-white mb-4 sm:mb-6">Top Performing Events</h3>
+          <div className="space-y-3 sm:space-y-4">
+            {analytics.topEvents.map((event: any, index: number) => (
+              <motion.div
+                key={event.id}
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: index * 0.1 }}
+                className="bg-white/5 border border-gray-600 rounded-lg p-3 sm:p-4 hover:border-gray-500 transition-colors"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3 sm:gap-4 flex-1 min-w-0">
+                    <div className="w-6 h-6 sm:w-8 sm:h-8 bg-orange-600/20 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <span className="text-orange-400 font-bold text-xs sm:text-sm">{index + 1}</span>
               </div>
-              <div className="flex-1">
-                <p className="text-white font-medium">New admin assigned</p>
-                <p className="text-sm text-gray-400">Admin created for RIT College</p>
-                <p className="text-xs text-gray-500">2 hours ago</p>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-semibold text-white text-sm sm:text-base truncate">{event.title}</h4>
+                      <p className="text-xs sm:text-sm text-gray-400 truncate">
+                        {event.registrations} registrations • {event.participationRate}% participation
+                      </p>
               </div>
             </div>
+                  <div className="text-right flex-shrink-0 ml-2">
+                    <div className="text-base sm:text-lg font-bold text-orange-400">{event.registrations}</div>
+                    <div className="text-xs text-gray-400">registrations</div>
+              </div>
+              </div>
+              </motion.div>
+            ))}
+            </div>
+        </div>
+      )}
 
-            <div className="flex items-start gap-3">
-              <div className="w-8 h-8 bg-blue-600/20 rounded-full flex items-center justify-center mt-1">
-                <Calendar className="w-4 h-4 text-blue-400" />
+      {/* Event Type Distribution */}
+      {analytics?.eventTypeDistribution && Object.keys(analytics.eventTypeDistribution).length > 0 && (
+        <div className="bg-white/5 border border-gray-700 rounded-xl p-4 sm:p-6">
+          <h3 className="text-lg sm:text-xl font-bold text-white mb-4 sm:mb-6">Event Type Distribution</h3>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
+            {Object.entries(analytics.eventTypeDistribution).map(([type, count]: [string, any], index: number) => (
+              <motion.div
+                key={type}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.1 }}
+                className="bg-white/5 border border-gray-600 rounded-lg p-3 sm:p-4 text-center"
+              >
+                <div className="text-xl sm:text-2xl font-bold text-cyan-400 mb-1 sm:mb-2">{count}</div>
+                <div className="text-xs sm:text-sm text-gray-300 capitalize truncate">{type.replace('-', ' ')}</div>
+                <div className="text-xs text-gray-400 mt-1">events</div>
+              </motion.div>
+            ))}
               </div>
-              <div className="flex-1">
-                <p className="text-white font-medium">Event created</p>
-                <p className="text-sm text-gray-400">Web Development Bootcamp scheduled</p>
-                <p className="text-xs text-gray-500">5 hours ago</p>
               </div>
-            </div>
+      )}
 
-            <div className="flex items-start gap-3">
-              <div className="w-8 h-8 bg-cyan-600/20 rounded-full flex items-center justify-center mt-1">
-                <Building className="w-4 h-4 text-cyan-400" />
+      {/* Recent Activity & System Health */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+        <div className="bg-white/5 border border-gray-700 rounded-xl p-4 sm:p-6">
+          <h3 className="text-lg sm:text-xl font-bold text-white mb-4 sm:mb-6">Recent Activity</h3>
+          <div className="space-y-3 sm:space-y-4">
+            {analytics?.recentActivity && analytics.recentActivity.length > 0 ? (
+              analytics.recentActivity.map((activity: any, index: number) => (
+                <motion.div
+                  key={index}
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: index * 0.1 }}
+                  className="flex items-start gap-2 sm:gap-3"
+                >
+                  <div className={`w-6 h-6 sm:w-8 sm:h-8 ${activity.iconBg || 'bg-blue-600/20'} rounded-full flex items-center justify-center mt-1 flex-shrink-0`}>
+                    {activity.icon === 'UserCheck' && <UserCheck className="w-3 h-3 sm:w-4 sm:h-4 text-green-400" />}
+                    {activity.icon === 'Calendar' && <Calendar className="w-3 h-3 sm:w-4 sm:h-4 text-blue-400" />}
+                    {activity.icon === 'Building' && <Building className="w-3 h-3 sm:w-4 sm:h-4 text-cyan-400" />}
+                    {activity.icon === 'Users' && <Users className="w-3 h-3 sm:w-4 sm:h-4 text-purple-400" />}
+                    {activity.icon === 'Shield' && <Shield className="w-3 h-3 sm:w-4 sm:h-4 text-orange-400" />}
+                    {!activity.icon && <Activity className="w-3 h-3 sm:w-4 sm:h-4 text-gray-400" />}
               </div>
-              <div className="flex-1">
-                <p className="text-white font-medium">College added</p>
-                <p className="text-sm text-gray-400">New college onboarded to platform</p>
-                <p className="text-xs text-gray-500">1 day ago</p>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-white font-medium text-sm sm:text-base truncate">{activity.title}</p>
+                    <p className="text-xs sm:text-sm text-gray-400 truncate">{activity.description}</p>
+                    <p className="text-xs text-gray-500">{activity.timestamp}</p>
               </div>
+                </motion.div>
+              ))
+            ) : (
+              <div className="text-center py-6 sm:py-8">
+                <Activity className="w-8 h-8 sm:w-12 sm:h-12 mx-auto text-gray-400 mb-3 sm:mb-4" />
+                <p className="text-gray-400 mb-1 sm:mb-2 text-sm sm:text-base">No recent activity</p>
+                <p className="text-xs sm:text-sm text-gray-500">Activity will appear here as users interact with the platform</p>
             </div>
-
-            <div className="flex items-start gap-3">
-              <div className="w-8 h-8 bg-purple-600/20 rounded-full flex items-center justify-center mt-1">
-                <Users className="w-4 h-4 text-purple-400" />
-              </div>
-              <div className="flex-1">
-                <p className="text-white font-medium">User registrations</p>
-                <p className="text-sm text-gray-400">15 new users joined today</p>
-                <p className="text-xs text-gray-500">6 hours ago</p>
-              </div>
-            </div>
+            )}
           </div>
         </div>
 
-        <div className="bg-white/5 border border-gray-700 rounded-xl p-6">
-          <h3 className="text-xl font-bold text-white mb-6">System Health</h3>
-          <div className="space-y-4">
+        <div className="bg-white/5 border border-gray-700 rounded-xl p-4 sm:p-6">
+          <h3 className="text-lg sm:text-xl font-bold text-white mb-4 sm:mb-6">System Health</h3>
+          <div className="space-y-3 sm:space-y-4">
             <div className="flex justify-between items-center">
-              <span className="text-gray-300">Database Performance</span>
+              <span className="text-gray-300 text-xs sm:text-sm">Database Performance</span>
               <div className="flex items-center gap-2">
-                <div className="w-20 bg-gray-700 rounded-full h-2">
-                  <div className="bg-green-500 h-2 rounded-full w-[95%]"></div>
+                <div className="w-16 sm:w-20 bg-gray-700 rounded-full h-2">
+                  <div 
+                    className={`h-2 rounded-full ${
+                      (analytics?.systemHealth?.databasePerformance || 95) >= 90 ? 'bg-green-500' :
+                      (analytics?.systemHealth?.databasePerformance || 95) >= 70 ? 'bg-orange-500' : 'bg-red-500'
+                    }`}
+                    style={{ width: `${analytics?.systemHealth?.databasePerformance || 95}%` }}
+                  ></div>
                 </div>
-                <span className="text-green-300 text-sm">95%</span>
+                <span className={`text-xs sm:text-sm ${
+                  (analytics?.systemHealth?.databasePerformance || 95) >= 90 ? 'text-green-300' :
+                  (analytics?.systemHealth?.databasePerformance || 95) >= 70 ? 'text-orange-300' : 'text-red-300'
+                }`}>
+                  {analytics?.systemHealth?.databasePerformance || 95}%
+                </span>
               </div>
             </div>
 
             <div className="flex justify-between items-center">
-              <span className="text-gray-300">API Response Time</span>
+              <span className="text-gray-300 text-xs sm:text-sm">API Response Time</span>
               <div className="flex items-center gap-2">
-                <div className="w-20 bg-gray-700 rounded-full h-2">
-                  <div className="bg-green-500 h-2 rounded-full w-[92%]"></div>
+                <div className="w-16 sm:w-20 bg-gray-700 rounded-full h-2">
+                  <div 
+                    className={`h-2 rounded-full ${
+                      (analytics?.systemHealth?.apiResponseTime || 92) >= 90 ? 'bg-green-500' :
+                      (analytics?.systemHealth?.apiResponseTime || 92) >= 70 ? 'bg-orange-500' : 'bg-red-500'
+                    }`}
+                    style={{ width: `${analytics?.systemHealth?.apiResponseTime || 92}%` }}
+                  ></div>
                 </div>
-                <span className="text-green-300 text-sm">92%</span>
+                <span className={`text-xs sm:text-sm ${
+                  (analytics?.systemHealth?.apiResponseTime || 92) >= 90 ? 'text-green-300' :
+                  (analytics?.systemHealth?.apiResponseTime || 92) >= 70 ? 'text-orange-300' : 'text-red-300'
+                }`}>
+                  {analytics?.systemHealth?.apiResponseTime || 92}%
+                </span>
               </div>
             </div>
 
             <div className="flex justify-between items-center">
-              <span className="text-gray-300">Server Load</span>
+              <span className="text-gray-300 text-xs sm:text-sm">Server Load</span>
               <div className="flex items-center gap-2">
-                <div className="w-20 bg-gray-700 rounded-full h-2">
-                  <div className="bg-orange-500 h-2 rounded-full w-[68%]"></div>
+                <div className="w-16 sm:w-20 bg-gray-700 rounded-full h-2">
+                  <div 
+                    className={`h-2 rounded-full ${
+                      (analytics?.systemHealth?.serverLoad || 68) <= 50 ? 'bg-green-500' :
+                      (analytics?.systemHealth?.serverLoad || 68) <= 80 ? 'bg-orange-500' : 'bg-red-500'
+                    }`}
+                    style={{ width: `${analytics?.systemHealth?.serverLoad || 68}%` }}
+                  ></div>
                 </div>
-                <span className="text-orange-300 text-sm">68%</span>
+                <span className={`text-xs sm:text-sm ${
+                  (analytics?.systemHealth?.serverLoad || 68) <= 50 ? 'text-green-300' :
+                  (analytics?.systemHealth?.serverLoad || 68) <= 80 ? 'text-orange-300' : 'text-red-300'
+                }`}>
+                  {analytics?.systemHealth?.serverLoad || 68}%
+                </span>
               </div>
             </div>
 
             <div className="flex justify-between items-center">
-              <span className="text-gray-300">Storage Usage</span>
+              <span className="text-gray-300 text-xs sm:text-sm">Storage Usage</span>
               <div className="flex items-center gap-2">
-                <div className="w-20 bg-gray-700 rounded-full h-2">
-                  <div className="bg-blue-500 h-2 rounded-full w-[45%]"></div>
+                <div className="w-16 sm:w-20 bg-gray-700 rounded-full h-2">
+                  <div 
+                    className={`h-2 rounded-full ${
+                      (analytics?.systemHealth?.storageUsage || 45) <= 60 ? 'bg-green-500' :
+                      (analytics?.systemHealth?.storageUsage || 45) <= 85 ? 'bg-orange-500' : 'bg-red-500'
+                    }`}
+                    style={{ width: `${analytics?.systemHealth?.storageUsage || 45}%` }}
+                  ></div>
                 </div>
-                <span className="text-blue-300 text-sm">45%</span>
+                <span className={`text-xs sm:text-sm ${
+                  (analytics?.systemHealth?.storageUsage || 45) <= 60 ? 'text-green-300' :
+                  (analytics?.systemHealth?.storageUsage || 45) <= 85 ? 'text-orange-300' : 'text-red-300'
+                }`}>
+                  {analytics?.systemHealth?.storageUsage || 45}%
+                </span>
               </div>
             </div>
 
-            <div className="mt-6 p-4 bg-green-500/10 border border-green-500/20 rounded-lg">
+            <div className={`mt-4 sm:mt-6 p-3 sm:p-4 ${
+              analytics?.systemHealth?.overallStatus === 'operational' ? 'bg-green-500/10 border-green-500/20' :
+              analytics?.systemHealth?.overallStatus === 'warning' ? 'bg-orange-500/10 border-orange-500/20' :
+              'bg-red-500/10 border-red-500/20'
+            } border rounded-lg`}>
               <div className="flex items-center gap-2">
-                <CheckCircle className="w-5 h-5 text-green-400" />
-                <span className="text-green-300 font-medium">All systems operational</span>
+                {analytics?.systemHealth?.overallStatus === 'operational' ? (
+                  <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5 text-green-400" />
+                ) : analytics?.systemHealth?.overallStatus === 'warning' ? (
+                  <AlertTriangle className="w-4 h-4 sm:w-5 sm:h-5 text-orange-400" />
+                ) : (
+                  <XCircle className="w-4 h-4 sm:w-5 sm:h-5 text-red-400" />
+                )}
+                <span className={`font-medium text-xs sm:text-sm ${
+                  analytics?.systemHealth?.overallStatus === 'operational' ? 'text-green-300' :
+                  analytics?.systemHealth?.overallStatus === 'warning' ? 'text-orange-300' : 'text-red-300'
+                }`}>
+                  {analytics?.systemHealth?.statusMessage || 'All systems operational'}
+                </span>
               </div>
-              <p className="text-sm text-gray-400 mt-1">No critical issues detected</p>
+              <p className="text-xs sm:text-sm text-gray-400 mt-1">
+                {analytics?.systemHealth?.statusDescription || 'No critical issues detected'}
+              </p>
             </div>
           </div>
         </div>
       </div>
 
       {/* Advanced Metrics */}
-      <div className="bg-white/5 border border-gray-700 rounded-xl p-6">
-        <h3 className="text-xl font-bold text-white mb-6">Advanced Analytics</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="bg-white/5 border border-gray-700 rounded-xl p-4 sm:p-6">
+        <h3 className="text-lg sm:text-xl font-bold text-white mb-4 sm:mb-6">Advanced Analytics</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">
           <div className="text-center">
-            <div className="text-3xl font-bold text-cyan-400 mb-2">
+            <div className="text-2xl sm:text-3xl font-bold text-cyan-400 mb-1 sm:mb-2">
               {Math.round(((stats?.totalUsers || 0) / (stats?.totalColleges || 1)) * 10) / 10}
             </div>
-            <div className="text-sm text-gray-400">Average Users per College</div>
+            <div className="text-xs sm:text-sm text-gray-400">Average Users per College</div>
           </div>
 
           <div className="text-center">
-            <div className="text-3xl font-bold text-green-400 mb-2">
+            <div className="text-2xl sm:text-3xl font-bold text-green-400 mb-1 sm:mb-2">
               {Math.round(((stats?.totalEvents || 0) / (stats?.totalColleges || 1)) * 10) / 10}
             </div>
-            <div className="text-sm text-gray-400">Average Events per College</div>
+            <div className="text-xs sm:text-sm text-gray-400">Average Events per College</div>
           </div>
 
           <div className="text-center">
-            <div className="text-3xl font-bold text-purple-400 mb-2">
+            <div className="text-2xl sm:text-3xl font-bold text-purple-400 mb-1 sm:mb-2">
               {Math.round(((stats?.totalAdmins || 0) / (stats?.totalColleges || 1)) * 100)}%
             </div>
-            <div className="text-sm text-gray-400">College Management Coverage</div>
+            <div className="text-xs sm:text-sm text-gray-400">College Management Coverage</div>
           </div>
         </div>
       </div>
@@ -2585,23 +2834,23 @@ const SuperAdminDashboard: React.FC = () => {
 
               {/* Member Information */}
               {scannedData.member && (
-                <div className="mb-4 space-y-2">
+              <div className="mb-4 space-y-2">
                   <div className="flex items-center gap-2">
                     <span className="text-purple-300 font-semibold">Member:</span>
                     <span className="text-white">{scannedData.member.fullName}</span>
-                  </div>
+                </div>
                   <div className="flex items-center gap-2">
                     <span className="text-blue-300 font-semibold">ID:</span>
                     <span className="text-white">{scannedData.member.memberId}</span>
-                  </div>
+                </div>
                   <div className="flex items-center gap-2">
                     <span className="text-green-300 font-semibold">College:</span>
                     <span className="text-white">{scannedData.member.college}</span>
-                  </div>
+                </div>
                   <div className="flex items-center gap-2">
                     <span className="text-yellow-300 font-semibold">Role:</span>
                     <span className="text-white">{scannedData.member.role}</span>
-                  </div>
+              </div>
                   <div className="flex items-center gap-2">
                     <span className="text-orange-300 font-semibold">Batch:</span>
                     <span className="text-white">{scannedData.member.batchYear}</span>
@@ -2643,24 +2892,24 @@ const SuperAdminDashboard: React.FC = () => {
 
               {/* Current Event Information (if scanning for specific event) */}
               {scannedData.currentEvent && (
-                <div className="mb-4 space-y-2">
+              <div className="mb-4 space-y-2">
                   <div className="flex items-center gap-2 mb-2">
                     <Calendar className="h-4 w-4 text-orange-400" />
                     <span className="text-orange-300 font-semibold">Current Event Context</span>
                   </div>
-                  <div>
+                <div>
                     <span className="text-orange-300 font-semibold">Event:</span>
                     <span className="text-white ml-2">{scannedData.currentEvent.title}</span>
-                  </div>
-                  <div>
+                </div>
+                <div>
                     <span className="text-orange-300 font-semibold">Date:</span>
                     <span className="text-white ml-2">{scannedData.currentEvent.date}</span>
-                  </div>
-                  <div>
+                </div>
+                <div>
                     <span className="text-orange-300 font-semibold">Location:</span>
                     <span className="text-white ml-2">{scannedData.currentEvent.location}</span>
-                  </div>
                 </div>
+              </div>
               )}
 
               {/* Status */}
@@ -2857,37 +3106,37 @@ const SuperAdminDashboard: React.FC = () => {
       )}
       <div className="flex">
         {/* Sidebar */}
-        <div className={`${sidebarOpen ? 'block' : 'hidden'} lg:block fixed lg:relative z-30 h-screen w-64 transition-all duration-300`}>
-          <div className="w-full h-full bg-white/5 border-r border-gray-700 backdrop-blur-xl overflow-y-auto">
-            {/* Header */}
-            <div className="p-6 border-b border-gray-700">
+        <div className={`${sidebarOpen ? 'block' : 'hidden'} lg:block fixed lg:sticky lg:top-0 z-30 h-screen w-64 transition-all duration-300`}>
+          <div className="w-full h-full bg-white/5 border-r border-gray-700 backdrop-blur-xl flex flex-col">
+            {/* Header - Fixed at top */}
+            <div className="flex-shrink-0 p-4 sm:p-6 border-b border-gray-700">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-gradient-to-r from-purple-500 to-cyan-500 rounded-full flex items-center justify-center">
-                  <Crown className="w-6 h-6 text-white" />
+                <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-r from-purple-500 to-cyan-500 rounded-full flex items-center justify-center">
+                  <Crown className="w-4 h-4 sm:w-6 sm:h-6 text-white" />
                 </div>
-                <div>
-                  <h2 className="font-bold text-white">Super Admin</h2>
-                  <p className="text-sm text-gray-400">DEVS Society</p>
+                <div className="flex-1 min-w-0">
+                  <h2 className="font-bold text-white text-sm sm:text-base truncate">Super Admin</h2>
+                  <p className="text-xs sm:text-sm text-gray-400 truncate">DEVS Society</p>
                 </div>
               </div>
             </div>
 
-            {/* Admin Info */}
-            <div className="p-4 border-b border-gray-700">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-purple-600 rounded-full flex items-center justify-center">
-                  <User className="w-4 h-4 text-white" />
+            {/* Admin Info - Fixed below header */}
+            <div className="flex-shrink-0 p-3 sm:p-4 border-b border-gray-700">
+              <div className="flex items-center gap-2 sm:gap-3">
+                <div className="w-6 h-6 sm:w-8 sm:h-8 bg-purple-600 rounded-full flex items-center justify-center flex-shrink-0">
+                  <User className="w-3 h-3 sm:w-4 sm:h-4 text-white" />
                 </div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-white">{admin?.fullName}</p>
-                  <p className="text-xs text-gold-400 font-medium">Super Administrator</p>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs sm:text-sm font-medium text-white truncate">{admin?.fullName}</p>
+                  <p className="text-xs text-gold-400 font-medium truncate">Super Administrator</p>
                 </div>
               </div>
             </div>
 
-            {/* Navigation */}
-            <nav className="p-4">
-              <ul className="space-y-2">
+            {/* Navigation - Scrollable */}
+            <nav className="flex-1 overflow-y-auto p-3 sm:p-4 scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-transparent">
+              <ul className="space-y-1 sm:space-y-2">
                 {sidebarItems.map((item) => {
                   const Icon = item.icon
                   return (
@@ -2898,18 +3147,20 @@ const SuperAdminDashboard: React.FC = () => {
                             navigate('/admin/events/attendance')
                           } else if (item.id === 'participation') {
                             navigate('/superadmin/participation')
+                          } else if (item.id === 'internal-booking') {
+                            navigate('/superadmin/internal-booking')
                           } else {
                             setActiveTab(item.id)
                           }
                         }}
-                        className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all ${
+                        className={`w-full flex items-center gap-2 sm:gap-3 px-2 sm:px-3 py-2 sm:py-2.5 rounded-lg transition-all text-sm sm:text-base ${
                           activeTab === item.id
-                            ? `bg-${item.color}-600 text-white`
+                            ? `bg-${item.color}-600 text-white shadow-lg`
                             : 'text-gray-300 hover:bg-white/5 hover:text-white'
                         }`}
                       >
-                        <Icon className="w-5 h-5" />
-                        {item.label}
+                        <Icon className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
+                        <span className="truncate">{item.label}</span>
                       </button>
                     </li>
                   )
@@ -2917,14 +3168,14 @@ const SuperAdminDashboard: React.FC = () => {
               </ul>
             </nav>
 
-            {/* Logout */}
-            <div className="absolute bottom-4 left-4 right-4">
+            {/* Logout - Fixed at bottom */}
+            <div className="flex-shrink-0 p-3 sm:p-4 border-t border-gray-700">
               <button
                 onClick={handleLogout}
-                className="w-full flex items-center gap-3 px-3 py-2 text-red-300 hover:bg-red-500/10 rounded-lg transition-all"
+                className="w-full flex items-center gap-2 sm:gap-3 px-3 py-2 text-red-300 hover:bg-red-500/10 rounded-lg transition-all text-sm sm:text-base"
               >
-                <LogOut className="w-5 h-5" />
-                Logout
+                <LogOut className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
+                <span className="truncate">Logout</span>
               </button>
             </div>
           </div>
@@ -2939,23 +3190,23 @@ const SuperAdminDashboard: React.FC = () => {
         )}
 
         {/* Main Content */}
-        <div className="flex-1 min-h-screen">
+        <div className="flex-1 min-h-screen lg:ml-0">
           {/* Header */}
-          <header className="bg-white/5 border-b border-gray-700 p-4 lg:p-6 sticky top-0 z-10">
+          <header className="bg-white/5 border-b border-gray-700 p-4 lg:p-6 sticky top-0 z-10 backdrop-blur-sm">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-3 sm:gap-4">
                 <button
                   onClick={() => setSidebarOpen(!sidebarOpen)}
                   className="lg:hidden p-2 text-gray-400 hover:text-white transition-colors"
                 >
-                  {sidebarOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+                  {sidebarOpen ? <X className="w-5 h-5 sm:w-6 sm:h-6" /> : <Menu className="w-5 h-5 sm:w-6 sm:h-6" />}
                 </button>
-                <div>
-                  <h1 className="text-2xl font-bold text-white capitalize flex items-center gap-2">
-                    <Crown className="w-6 h-6 text-gold-400" />
-                    {activeTab.replace('-', ' ')}
+                <div className="flex-1 min-w-0">
+                  <h1 className="text-lg sm:text-2xl font-bold text-white capitalize flex items-center gap-2">
+                    <Crown className="w-4 h-4 sm:w-6 sm:h-6 text-gold-400 flex-shrink-0" />
+                    <span className="truncate">{activeTab.replace('-', ' ')}</span>
                   </h1>
-                  <p className="text-gray-400">
+                  <p className="text-xs sm:text-sm text-gray-400 truncate">
                     {activeTab === 'overview' && 'Super Admin dashboard overview and global statistics'}
                     {activeTab === 'colleges' && 'Manage all colleges and their information'}
                     {activeTab === 'admins' && 'Manage admin accounts and tenure assignments'}
@@ -2963,15 +3214,16 @@ const SuperAdminDashboard: React.FC = () => {
                     {activeTab === 'events' && 'Global event management and oversight'}
                     {activeTab === 'analytics' && 'Advanced analytics and reporting'}
                     {activeTab === 'participation' && 'Comprehensive event participation tracking'}
+                    {activeTab === 'internal-booking' && 'Register users for events internally'}
                     {activeTab === 'settings' && 'System settings and configuration'}
                   </p>
                 </div>
               </div>
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0">
                 <button className="p-2 text-gray-400 hover:text-white transition-colors">
-                  <Bell className="w-6 h-6" />
+                  <Bell className="w-5 h-5 sm:w-6 sm:h-6" />
                 </button>
-                <div className="text-sm text-gray-400">
+                <div className="hidden sm:block text-xs sm:text-sm text-gray-400">
                   Last login: {admin?.lastLogin ? new Date(admin.lastLogin).toLocaleDateString() : 'N/A'}
                 </div>
               </div>
@@ -2979,7 +3231,7 @@ const SuperAdminDashboard: React.FC = () => {
           </header>
 
           {/* Content */}
-          <main className="p-2 sm:p-4 lg:p-6">
+          <main className="p-2 sm:p-4 lg:p-6 overflow-x-hidden">
             {renderContent()}
           </main>
         </div>

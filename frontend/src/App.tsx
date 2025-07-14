@@ -13,6 +13,8 @@ import AdminDashboard from './components/AdminDashboard'
 import EventAttendance from './pages/admin/EventAttendance';
 import AttendanceOverview from './pages/admin/AttendanceOverview';
 import { Participation } from './pages/superadmin/Participation';
+import { InternalBooking } from './pages/superadmin/InternalBooking';
+import SuperAdminDashboard from './components/SuperAdminDashboard';
 
 function App() {
   return (
@@ -39,7 +41,9 @@ function App() {
             <Route path="/admin" element={<Navigate to="/admin/login" replace />} />
             
             {/* Super Admin Routes */}
+            <Route path="/superadmin" element={<SuperAdminDashboard />} />
             <Route path="/superadmin/participation" element={<Participation />} />
+            <Route path="/superadmin/internal-booking" element={<InternalBooking />} />
             
             {/* Default redirect */}
             <Route path="/" element={<Navigate to="/login" replace />} />

@@ -617,6 +617,25 @@ class EventService {
     }
   }
 
+  // Get all registrations for analytics
+  async getAllRegistrations(): Promise<IEventRegistration[]> {
+    try {
+      const { data, error } = await this.supabase
+        .from('event_registrations')
+        .select('*')
+        .order('created_at', { ascending: false })
+
+      if (error) {
+        handleSupabaseError(error, 'getAllRegistrations')
+      }
+
+      return data?.map(reg => this.mapDbRegistrationToRegistration(reg)) || []
+    } catch (error) {
+      console.error('Error getting all registrations:', error)
+      throw error
+    }
+  }
+
   // Check if user can register for event
   async canUserRegister(eventId: string, userId: string): Promise<{
     canRegister: boolean

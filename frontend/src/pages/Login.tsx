@@ -156,9 +156,8 @@ export function Login() {
             
             <div className="relative z-10">
               <div className="text-center mb-8">
-                <div className="inline-flex items-center gap-2 bg-gradient-to-r from-cyan-500/10 to-purple-500/10 rounded-full px-6 py-2 border border-cyan-500/20 mb-6">
-                  <Shield className="h-5 w-5 text-cyan-400" />
-                  <span className="text-sm text-cyan-300 font-medium">Secure Login</span>
+                <div className="inline-flex items-center justify-center ">
+                  <img src="/images/devslogo.png" alt="DEVS Logo" className="h-12 w-16 border-2 border-white rounded-full" />
                 </div>
                 
                 <motion.h1 

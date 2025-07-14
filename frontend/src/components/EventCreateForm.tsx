@@ -16,12 +16,14 @@ const EventCreateForm: React.FC<EventCreateFormProps> = ({ onSubmit }) => {
     location: '',
     maxAttendees: '',
     eventType: 'open-to-all',
+    targetCollege: '',
     isPaid: false,
     adminPricing: [{ adminType: '', amount: '' } as AdminPricing],
     collegeAmount: '',
   })
   const [error, setError] = useState('')
   const [adminsByCollege, setAdminsByCollege] = useState<any>({})
+  const [colleges, setColleges] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
 
   const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -45,22 +47,30 @@ const EventCreateForm: React.FC<EventCreateFormProps> = ({ onSubmit }) => {
   const addAdminPricing = () => setForm(f => ({ ...f, adminPricing: [...f.adminPricing, { adminType: '', amount: '' }] }))
   const removeAdminPricing = (idx: number) => setForm(f => ({ ...f, adminPricing: f.adminPricing.filter((_, i) => i !== idx) }))
 
-  // Fetch admins when component mounts
+  // Fetch admins and colleges when component mounts
   useEffect(() => {
-    const fetchAdmins = async () => {
+    const fetchData = async () => {
       try {
         setLoading(true)
-        const response = await superAdminApiService.getAdminsForEvents()
-        if (response.success) {
-          setAdminsByCollege(response.adminsByCollege)
+        const [adminsResponse, collegesResponse] = await Promise.all([
+          superAdminApiService.getAdminsForEvents(),
+          superAdminApiService.getColleges()
+        ])
+        
+        if (adminsResponse.success) {
+          setAdminsByCollege(adminsResponse.adminsByCollege)
+        }
+        
+        if (collegesResponse.success) {
+          setColleges(collegesResponse.colleges)
         }
       } catch (error) {
-        console.error('Error fetching admins:', error)
+        console.error('Error fetching data:', error)
       } finally {
         setLoading(false)
       }
     }
-    fetchAdmins()
+    fetchData()
   }, [])
 
   // Auto-populate admin pricing when event type changes to open-to-all and is paid
@@ -88,9 +98,15 @@ const EventCreateForm: React.FC<EventCreateFormProps> = ({ onSubmit }) => {
         setError('Please fill all admin type pricing fields')
         return
       }
-      if (form.eventType === 'college-specific' && !form.collegeAmount) {
-        setError('Please enter the amount for this college-specific event')
-        return
+      if (form.eventType === 'college-specific') {
+        if (!form.targetCollege) {
+          setError('Please select a target college for this college-specific event')
+          return
+        }
+        if (form.isPaid && !form.collegeAmount) {
+          setError('Please enter the amount for this college-specific event')
+          return
+        }
       }
     }
     onSubmit(form)
@@ -131,6 +147,19 @@ const EventCreateForm: React.FC<EventCreateFormProps> = ({ onSubmit }) => {
           <option value="college-specific">College Specific</option>
         </select>
       </div>
+      {form.eventType === 'college-specific' && (
+        <div>
+          <label className="block font-medium mb-1">Target College</label>
+          <select name="targetCollege" value={form.targetCollege} onChange={handleChange} className="w-full px-3 py-2 bg-white/10 border border-gray-600 rounded-lg text-white focus:border-orange-500 focus:outline-none" required>
+            <option value="">Select a college</option>
+            {colleges.map((college) => (
+              <option key={college.id} value={college.id}>
+                {college.name} ({college.code})
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
       <div>
         <label className="block font-medium mb-1">Is this event Free or Paid?</label>
         <div className="flex gap-4">

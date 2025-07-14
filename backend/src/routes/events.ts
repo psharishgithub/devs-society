@@ -274,7 +274,7 @@ router.post('/',
     body('description').trim().isLength({ min: 10 }).withMessage('Description must be at least 10 characters'),
     body('date').isISO8601().withMessage('Invalid date format'),
     body('location').trim().isLength({ min: 3 }).withMessage('Location must be at least 3 characters'),
-    body('eventType').isIn(['workshop', 'seminar', 'competition', 'social', 'other']).withMessage('Invalid event type'),
+    body('eventType').isIn(['open-to-all', 'college-specific']).withMessage('Invalid event type'),
     body('maxAttendees').optional().isInt({ min: 1 }).withMessage('Max attendees must be a positive number')
   ],
   async (req: express.Request, res: express.Response) => {

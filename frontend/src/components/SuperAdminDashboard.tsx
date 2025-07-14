@@ -1245,8 +1245,8 @@ const SuperAdminDashboard: React.FC = () => {
         <div>
           <h2 className="text-2xl font-bold text-white">Event Management</h2>
           <p className="text-gray-400">Manage all events across colleges</p>
-        </div>
-        Failed to create event: Server error        <div className="flex gap-2">
+       </div>{/*
+        Failed to create event: Server error       */} <div className="flex gap-2">
           <button
             onClick={() => setShowQRScanner(true)}
             className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"

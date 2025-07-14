@@ -178,6 +178,38 @@ export const usersAPI = {
     return response.data
   },
 
+  updateProfileWithPhoto: async (updates: Partial<User>, photoFile?: File): Promise<{ success: boolean; user: User; error?: string }> => {
+    try {
+      const formData = new FormData()
+      
+      // Add text fields
+      Object.entries(updates).forEach(([key, value]) => {
+        if (value !== undefined) {
+          formData.append(key, value as string)
+        }
+      })
+      
+      // Add photo file if provided
+      if (photoFile) {
+        formData.append('photo', photoFile)
+      }
+      
+      const response = await api.put('/users/profile', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      })
+      return response.data
+    } catch (error: any) {
+      console.error('Profile update error:', error)
+      return {
+        success: false,
+        user: {} as User,
+        error: error.response?.data?.message || 'Failed to update profile'
+      }
+    }
+  },
+
   getAllUsers: async (): Promise<{ success: boolean; users: User[] }> => {
     const response = await api.get('/users')
     return response.data

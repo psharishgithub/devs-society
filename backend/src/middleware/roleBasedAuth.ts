@@ -102,14 +102,25 @@ export const requirePermissions = (permissions: string[]) => {
 // Require college access (admin must be assigned to a college)
 export const requireCollegeAccess = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    if (!req.admin || !req.admin.assignedCollege) {
+    if (!req.admin || (req.admin.role !== 'super-admin' && !req.admin.assignedCollege)) {
       return res.status(403).json({ 
         success: false, 
         message: 'Access denied. No college assignment found.' 
       })
     }
 
+    // For superadmin, skip college existence check
+    if (req.admin.role === 'super-admin') {
+      return next()
+    }
+
     // Verify college exists and admin is still assigned
+    if (!req.admin.assignedCollege) {
+      return res.status(403).json({ 
+        success: false, 
+        message: 'Access denied. No college assignment found.' 
+      })
+    }
     const college = await CollegeService.findById(req.admin.assignedCollege)
     if (!college || !college.isActive) {
       return res.status(403).json({ 
@@ -131,9 +142,9 @@ export const requireCollegeAccess = async (req: Request, res: Response, next: Ne
 // Add college filter to requests (for college-specific operations)
 export const addCollegeFilter = (req: Request, res: Response, next: NextFunction) => {
   if (req.admin && req.admin.assignedCollege) {
-    // Add college filter to request for use in route handlers
     req.query.collegeFilter = req.admin.assignedCollege
   }
+  // For superadmin, do not restrict
   next()
 }
 

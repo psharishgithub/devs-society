@@ -67,20 +67,50 @@ app.use('*', (req, res) => {
 // Database connection
 const connectDB = async () => {
   try {
+    console.log('🔗 Connecting to Supabase database...')
+    
     // Initialize Supabase client
     initializeSupabase()
     console.log('✅ Supabase client initialized')
     
-    // Test the connection
-    const isConnected = await testConnection()
+    // Test the connection with retries
+    console.log('🔍 Testing database connection...')
+    const isConnected = await testConnection(3)
+    
     if (!isConnected) {
-      throw new Error('Supabase connection test failed')
+      console.error('❌ Database connection failed after retries')
+      console.log('\n🔧 Troubleshooting steps:')
+      console.log('1. Check your internet connection')
+      console.log('2. Verify Supabase environment variables')
+      console.log('3. Check if Supabase service is running')
+      console.log('4. If using ngrok, try restarting the tunnel')
+      console.log('5. Check firewall settings')
+      
+      // Don't exit immediately, give it another try
+      console.log('\n⏳ Retrying connection in 5 seconds...')
+      await new Promise(resolve => setTimeout(resolve, 5000))
+      
+      const retryConnected = await testConnection(2)
+      if (!retryConnected) {
+        throw new Error('Supabase connection failed after all retries')
+      }
     }
     
-    console.log('✅ Supabase connection verified')
+    console.log('✅ Supabase connection verified and ready!')
   } catch (error) {
     console.error('❌ Database connection error:', error)
-    process.exit(1)
+    console.log('\n💡 If you\'re using ngrok, try these solutions:')
+    console.log('1. Restart your ngrok tunnel')
+    console.log('2. Check if your Supabase project is active')
+    console.log('3. Verify your environment variables')
+    console.log('4. Try running: node test_supabase_connection.js')
+    
+    // For development, don't exit immediately
+    if (process.env.NODE_ENV === 'production') {
+      process.exit(1)
+    } else {
+      console.log('⚠️  Continuing in development mode despite database issues...')
+    }
   }
 }
 

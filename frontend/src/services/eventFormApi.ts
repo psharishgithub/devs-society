@@ -137,7 +137,81 @@ export const qrCodeAPI = {
     return response.data
   },
 
-  // Admin APIs
+  // Admin APIs - Unified QR Verification (Primary Method)
+  verifyMember: async (qrCodeData: string, eventId?: string, notes?: string): Promise<{
+    success: boolean
+    message: string
+    qrCodeType: 'member_card' | 'event_specific'
+    member?: {
+      id: string
+      memberId: string
+      fullName: string
+      email: string
+      college: string
+      batchYear: number
+      role: string
+      createdAt: string
+    }
+    eventRegistrations?: Array<{
+      id: string
+      eventId: string
+      eventTitle: string
+      eventDate: string
+      eventTime: string
+      eventLocation: string
+      status: string
+      registeredAt: string
+      paymentVerified: boolean
+    }>
+    currentEvent?: {
+      id: string
+      title: string
+      date: string
+      time: string
+      location: string
+    }
+    currentRegistration?: {
+      id: string
+      status: string
+      registeredAt: string
+      paymentVerified: boolean
+    }
+    status?: 'registered' | 'not_registered' | 'member_only'
+    checkIn?: {
+      userName: string
+      eventTitle: string
+      checkInTime: string
+    }
+  }> => {
+    const payload: any = { qrCodeData }
+    if (eventId) payload.eventId = eventId
+    if (notes) payload.notes = notes
+    const response = await api.post('/qr-code/verify-member', payload)
+    return response.data
+  },
+
+  // Admin APIs - Member Card Check-in (Primary Method)
+  checkInMember: async (qrCodeData: string, eventId: string, notes?: string): Promise<{
+    success: boolean
+    message: string
+    qrCodeType: 'member_card'
+    checkIn: {
+      userName: string
+      eventTitle: string
+      checkInTime: string
+      memberId: string
+      college: string
+      batchYear: number
+      role: string
+    }
+  }> => {
+    const payload: any = { qrCodeData, eventId }
+    if (notes) payload.notes = notes
+    const response = await api.post('/qr-code/check-in-member', payload)
+    return response.data
+  },
+
+  // Admin APIs - Legacy Event-specific Check-in (Fallback Method)
   processCheckIn: async (qrCodeData: string, notes?: string): Promise<{
     success: boolean
     message: string

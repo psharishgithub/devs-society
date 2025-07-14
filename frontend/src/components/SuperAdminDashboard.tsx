@@ -17,6 +17,7 @@ import {
 import UserModal from './UserModal'
 import QRScanner from './QRScanner'
 import EventCreateForm from './EventCreateForm'
+import { qrCodeAPI } from '../services/eventFormApi'
 
 const SuperAdminDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState('overview')
@@ -771,19 +772,46 @@ const SuperAdminDashboard: React.FC = () => {
 
   const handleQRScan = async (qrData: string): Promise<'success' | 'invalid' | 'already_checked_in' | 'error'> => {
     try {
-      const response = await superAdminApiService.scanQRCode(qrData)
-      if (response.success) {
-        setScannedData(response.data)
-        setScanStatus(response.status) // 'registered' or 'not_registered'
-        setShowQRScanner(false)
-        // Map backend status to allowed QRScanner return values
-        return response.status === 'registered' ? 'success' : 'invalid'
+      // Use the new unified QR verification system
+      const verifyResponse = await qrCodeAPI.verifyMember(qrData)
+      
+      if (verifyResponse.success) {
+        setScannedData({
+          qrCodeType: verifyResponse.qrCodeType,
+          member: verifyResponse.member ?? null,
+          eventRegistrations: Array.isArray(verifyResponse.eventRegistrations) ? verifyResponse.eventRegistrations : [],
+          currentEvent: verifyResponse.currentEvent ?? null,
+          currentRegistration: verifyResponse.currentRegistration ?? null,
+          status: verifyResponse.status ?? 'member_only'
+        })
+        
+        if (verifyResponse.qrCodeType === 'member_card') {
+          if (verifyResponse.status === 'registered') {
+            setScanStatus('registered')
+            return 'success'
+          } else if (verifyResponse.status === 'not_registered') {
+            setScanStatus('not_registered')
+            return 'invalid'
+          } else {
+            setScanStatus('member_only')
+            return 'success'
+          }
+        } else {
+          if (verifyResponse.status === 'registered') {
+            setScanStatus('registered')
+            return 'success'
+          } else {
+            setScanStatus('not_registered')
+            return 'invalid'
+          }
+        }
       } else {
         setScannedData(null)
         setScanStatus('invalid')
         return 'invalid'
       }
     } catch (error: any) {
+      console.error('QR scan error:', error)
       setScannedData(null)
       setScanStatus('error')
       return 'error'
@@ -2418,7 +2446,7 @@ const SuperAdminDashboard: React.FC = () => {
           isOpen={showQRScanner}
           onClose={() => setShowQRScanner(false)}
           onScan={handleQRScan}
-          title="Event Registration Scanner"
+          title="Member Verification Scanner"
         />
         {/* QR Scan Result Modal */}
         {scannedData && (
@@ -2426,36 +2454,97 @@ const SuperAdminDashboard: React.FC = () => {
             <div className="bg-gradient-to-br from-cyan-900/90 to-purple-900/90 rounded-2xl shadow-2xl p-8 max-w-md w-full border border-cyan-500/30">
               <h2 className="text-2xl font-bold text-white mb-4 flex items-center gap-2">
                 <QrCode className="h-6 w-6 text-cyan-400" />
-                Event & Student Details
+                Member Verification Result
               </h2>
-              <div className="mb-4 space-y-2">
-                <div>
-                  <span className="text-cyan-300 font-semibold">Event:</span>
-                  <span className="text-white ml-2">{scannedData.event?.title}</span>
-                </div>
-                <div>
-                  <span className="text-cyan-300 font-semibold">Date:</span>
-                  <span className="text-white ml-2">{scannedData.event?.date}</span>
-                </div>
-                <div>
-                  <span className="text-cyan-300 font-semibold">Location:</span>
-                  <span className="text-white ml-2">{scannedData.event?.location}</span>
-                </div>
+              
+              {/* QR Code Type Indicator */}
+              <div className="mb-4 p-2 rounded-lg bg-cyan-500/20 border border-cyan-500/30">
+                <p className="text-cyan-400 text-sm font-medium">
+                  {scannedData.qrCodeType === 'member_card' ? 'Member Card QR Code' : 'Event QR Code'}
+                </p>
               </div>
-              <div className="mb-4 space-y-2">
-                <div>
-                  <span className="text-purple-300 font-semibold">Student:</span>
-                  <span className="text-white ml-2">{scannedData.user?.fullName}</span>
+
+              {/* Member Information */}
+              {scannedData.member && (
+                <div className="mb-4 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-purple-300 font-semibold">Member:</span>
+                    <span className="text-white">{scannedData.member.fullName}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-blue-300 font-semibold">ID:</span>
+                    <span className="text-white">{scannedData.member.memberId}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-green-300 font-semibold">College:</span>
+                    <span className="text-white">{scannedData.member.college}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-yellow-300 font-semibold">Role:</span>
+                    <span className="text-white">{scannedData.member.role}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-orange-300 font-semibold">Batch:</span>
+                    <span className="text-white">{scannedData.member.batchYear}</span>
+                  </div>
                 </div>
-                <div>
-                  <span className="text-purple-300 font-semibold">Email:</span>
-                  <span className="text-white ml-2">{scannedData.user?.email}</span>
+              )}
+
+              {/* Event Registrations Information */}
+              {scannedData.eventRegistrations && scannedData.eventRegistrations.length > 0 && (
+                <div className="mb-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Calendar className="h-4 w-4 text-cyan-400" />
+                    <span className="text-cyan-300 font-semibold">Event Registrations ({scannedData.eventRegistrations.length})</span>
+                  </div>
+                  <div className="max-h-32 overflow-y-auto space-y-2">
+                    {scannedData.eventRegistrations.map((reg: any, index: number) => (
+                      <div key={reg.id} className="p-2 bg-cyan-500/10 rounded border border-cyan-500/20">
+                        <div className="text-white text-sm font-medium">{reg.eventTitle}</div>
+                        <div className="text-cyan-300 text-xs">
+                          {reg.eventDate ? new Date(reg.eventDate).toLocaleDateString() : 'Date not set'} • {reg.eventLocation || 'Location not set'}
+                        </div>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className={`text-xs px-1 py-0.5 rounded ${
+                            reg.status === 'confirmed' ? 'bg-green-500/20 text-green-300' : 'bg-yellow-500/20 text-yellow-300'
+                          }`}>
+                            {reg.status}
+                          </span>
+                          {reg.paymentVerified && (
+                            <span className="text-xs px-1 py-0.5 rounded bg-blue-500/20 text-blue-300">
+                              Paid
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-                <div>
-                  <span className="text-purple-300 font-semibold">College:</span>
-                  <span className="text-white ml-2">{scannedData.user?.college}</span>
+              )}
+
+              {/* Current Event Information (if scanning for specific event) */}
+              {scannedData.currentEvent && (
+                <div className="mb-4 space-y-2">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Calendar className="h-4 w-4 text-orange-400" />
+                    <span className="text-orange-300 font-semibold">Current Event Context</span>
+                  </div>
+                  <div>
+                    <span className="text-orange-300 font-semibold">Event:</span>
+                    <span className="text-white ml-2">{scannedData.currentEvent.title}</span>
+                  </div>
+                  <div>
+                    <span className="text-orange-300 font-semibold">Date:</span>
+                    <span className="text-white ml-2">{scannedData.currentEvent.date}</span>
+                  </div>
+                  <div>
+                    <span className="text-orange-300 font-semibold">Location:</span>
+                    <span className="text-white ml-2">{scannedData.currentEvent.location}</span>
+                  </div>
                 </div>
-              </div>
+              )}
+
+              {/* Status */}
               {scanStatus === 'registered' && (
                 <div className="text-green-400 font-semibold mb-4 flex items-center gap-2">
                   <CheckCircle className="h-5 w-5" /> Registered for this event!
@@ -2464,6 +2553,15 @@ const SuperAdminDashboard: React.FC = () => {
               {scanStatus === 'not_registered' && (
                 <div className="text-red-400 font-semibold mb-4 flex items-center gap-2">
                   <AlertCircle className="h-5 w-5" /> Not registered for this event.
+                </div>
+              )}
+              {scanStatus === 'member_only' && (
+                <div className="text-yellow-400 font-semibold mb-4 flex items-center gap-2">
+                  <span className="text-yellow-400">👤</span> 
+                  {scannedData.eventRegistrations && scannedData.eventRegistrations.length > 0 
+                    ? `Member verified with ${scannedData.eventRegistrations.length} event registration(s).`
+                    : 'Member verified (no event registrations).'
+                  }
                 </div>
               )}
               {scanStatus === 'invalid' && (
@@ -2476,6 +2574,7 @@ const SuperAdminDashboard: React.FC = () => {
                   <AlertCircle className="h-5 w-5" /> Error processing QR code.
                 </div>
               )}
+              
               <button
                 className="mt-2 w-full px-4 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg font-semibold transition"
                 onClick={() => { setScannedData(null); setScanStatus(null); }}

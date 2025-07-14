@@ -408,7 +408,20 @@ export const initializeSupabase = (): SupabaseClient<Database> => {
       throw new Error('Missing Supabase environment variables. Please set SUPABASE_URL and SUPABASE_ANON_KEY')
     }
 
-    supabase = createClient<Database>(supabaseUrl, supabaseKey)
+    console.log('🔗 Initializing Supabase connection...')
+    console.log('📡 Supabase URL:', supabaseUrl)
+    console.log('🔑 Supabase Key:', supabaseKey ? `${supabaseKey.substring(0, 10)}...` : 'NOT SET')
+
+    supabase = createClient<Database>(supabaseUrl, supabaseKey, {
+      auth: {
+        persistSession: false // Disable session persistence for server-side usage
+      },
+      global: {
+        headers: {
+          'User-Agent': 'DEVS-Society-Backend/1.0'
+        }
+      }
+    })
   }
 
   return supabase
@@ -424,29 +437,89 @@ export const getSupabase = (): SupabaseClient<Database> => {
 
 // Helper function for error handling
 export const handleSupabaseError = (error: any, operation: string) => {
-  console.error(`Supabase error during ${operation}:`, error)
+  console.error(`❌ Supabase error during ${operation}:`, {
+    message: error.message,
+    details: error.details,
+    hint: error.hint,
+    code: error.code,
+    stack: error.stack
+  })
+  
+  // Check if it's a network error
+  if (error.message?.includes('fetch failed') || error.message?.includes('network')) {
+    console.error('🌐 Network connectivity issue detected. This might be due to:')
+    console.error('   - Internet connection problems')
+    console.error('   - Firewall blocking the connection')
+    console.error('   - Supabase service being down')
+    console.error('   - ngrok tunnel issues')
+  }
+  
   throw new Error(`Database operation failed: ${operation}`)
 }
 
-// Connection test function
-export const testConnection = async (): Promise<boolean> => {
-  try {
-    const supabase = getSupabase()
-    const { data, error } = await supabase
-      .from('colleges')
-      .select('count')
-      .limit(1)
-    
-    if (error) {
-      console.error('Supabase connection test failed:', error)
+// Connection test function with retry logic
+export const testConnection = async (retries: number = 3): Promise<boolean> => {
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      console.log(`🔍 Testing Supabase connection (attempt ${attempt}/${retries})...`)
+      
+      const supabase = getSupabase()
+      const { data, error } = await supabase
+        .from('colleges')
+        .select('count')
+        .limit(1)
+      
+      if (error) {
+        console.error(`❌ Supabase connection test failed (attempt ${attempt}):`, error)
+        if (attempt < retries) {
+          console.log(`⏳ Retrying in 2 seconds...`)
+          await new Promise(resolve => setTimeout(resolve, 2000))
+          continue
+        }
+        return false
+      }
+      
+      console.log('✅ Supabase connection successful!')
+      return true
+    } catch (error) {
+      console.error(`❌ Supabase connection test error (attempt ${attempt}):`, error)
+      if (attempt < retries) {
+        console.log(`⏳ Retrying in 2 seconds...`)
+        await new Promise(resolve => setTimeout(resolve, 2000))
+        continue
+      }
       return false
     }
-    
-    console.log('✅ Supabase connection successful')
-    return true
+  }
+  
+  return false
+}
+
+// Enhanced connection test for debugging
+export const debugConnection = async (): Promise<void> => {
+  console.log('🔧 Debugging Supabase connection...')
+  
+  const supabaseUrl = process.env.SUPABASE_URL
+  const supabaseKey = process.env.SUPABASE_ANON_KEY
+  
+  console.log('📋 Environment check:')
+  console.log('   SUPABASE_URL:', supabaseUrl ? '✅ Set' : '❌ Missing')
+  console.log('   SUPABASE_ANON_KEY:', supabaseKey ? '✅ Set' : '❌ Missing')
+  
+  if (!supabaseUrl || !supabaseKey) {
+    console.error('❌ Missing required environment variables')
+    return
+  }
+  
+  try {
+    const isConnected = await testConnection(1)
+    if (isConnected) {
+      console.log('✅ Connection test passed')
+    } else {
+      console.log('❌ Connection test failed')
+    }
   } catch (error) {
-    console.error('Supabase connection test error:', error)
-    return false
+    console.error('❌ Connection test error:', error)
   }
 }
 

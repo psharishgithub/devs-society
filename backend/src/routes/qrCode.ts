@@ -349,4 +349,416 @@ router.get('/event/:eventId/scanner-qr', adminAuth, async (req: Request, res: Re
   }
 })
 
+// ============ UNIFIED QR VERIFICATION (Primary Method) ============
+
+// @route   POST /api/qr-code/verify-member
+// @desc    Verify member using QR code (supports both member card and event QR codes)
+// @access  Admin
+router.post('/verify-member', 
+  adminAuth,
+  [
+    body('qrCodeData').notEmpty().withMessage('QR code data is required'),
+    body('eventId').optional().isUUID().withMessage('Valid event ID is required if provided'),
+    body('notes').optional().isString()
+  ],
+  async (req: Request, res: Response) => {
+    try {
+      const errors = validationResult(req)
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ 
+          success: false, 
+          message: 'Validation failed', 
+          errors: errors.array() 
+        })
+      }
+
+      const { qrCodeData, eventId, notes } = req.body
+      const adminId = req.admin!.id
+      const supabase = getSupabase()
+
+      let memberData: any = null
+      let eventRegistrationData: any = null
+      let qrCodeType: 'member_card' | 'event_specific' = 'member_card'
+
+      // Try to parse as member card QR code first (primary method)
+      try {
+        const parsedMemberData = JSON.parse(qrCodeData)
+        
+        // Check if this is a member card QR code
+        if ((parsedMemberData.id || parsedMemberData.memberId) && parsedMemberData.name && parsedMemberData.email && parsedMemberData.qrType === 'member_card') {
+          // This is a member card QR code
+          memberData = parsedMemberData
+          qrCodeType = 'member_card'
+        } else if (parsedMemberData.eventId && parsedMemberData.userId) {
+          // This is an event-specific QR code (fallback)
+          eventRegistrationData = parsedMemberData
+          qrCodeType = 'event_specific'
+        } else {
+          return res.status(400).json({ 
+            success: false, 
+            message: 'Invalid QR code format. Expected member card (with id/memberId, name, email, qrType) or event QR code.' 
+          })
+        }
+      } catch (parseError) {
+        console.error('QR code parse error:', parseError)
+        return res.status(400).json({ 
+          success: false, 
+          message: 'Invalid QR code data format' 
+        })
+      }
+
+      let user: any = null
+      let event: any = null
+      let registration: any = null
+
+      if (qrCodeType === 'member_card') {
+        // Handle member card QR code
+        // Find user by member ID (try both id and memberId fields)
+        const memberIdToSearch = memberData.memberId || memberData.id
+        if (!memberIdToSearch) {
+          return res.status(400).json({
+            success: false,
+            message: 'QR code missing both id and memberId fields.'
+          })
+        }
+        const { data: userData, error: userError } = await supabase
+          .from('users')
+          .select('*')
+          .eq('member_id', memberIdToSearch)
+          .single()
+
+        if (userError || !userData) {
+          return res.status(404).json({ 
+            success: false, 
+            message: 'Member not found. Please check if the QR code is valid.',
+            qrCodeType: 'member_card',
+            member: null,
+            eventRegistrations: [],
+            currentEvent: null,
+            currentRegistration: null,
+            status: 'not_registered'
+          })
+        }
+
+        user = userData
+
+        // If eventId is provided, check registration for that event
+        if (eventId) {
+          const { data: eventData, error: eventError } = await supabase
+            .from('events')
+            .select('*')
+            .eq('id', eventId)
+            .single()
+
+          if (eventError || !eventData) {
+            return res.status(404).json({ 
+              success: false, 
+              message: 'Event not found',
+              qrCodeType: 'member_card',
+              member: {
+                id: user.id,
+                memberId: user.member_id,
+                fullName: user.full_name,
+                email: user.email,
+                college: user.college,
+                batchYear: user.batch_year,
+                role: user.role,
+                createdAt: user.created_at
+              },
+              eventRegistrations: [],
+              currentEvent: null,
+              currentRegistration: null,
+              status: 'not_registered'
+            })
+          }
+
+          event = eventData
+
+          // Check if user is registered for this event
+          const { data: registrationData, error: registrationError } = await supabase
+            .from('event_registrations')
+            .select('*')
+            .eq('event_id', eventId)
+            .eq('user_id', user.id)
+            .eq('status', 'confirmed')
+            .single()
+
+          if (!registrationError && registrationData) {
+            registration = registrationData
+          }
+        }
+
+        // Get all event registrations for this member
+        const { data: allRegistrations, error: registrationsError } = await supabase
+          .from('event_registrations')
+          .select('id, status, registered_at, payment_verified, event_id')
+          .eq('user_id', user.id)
+          .eq('status', 'confirmed')
+
+        let eventRegistrations: any[] = []
+        if (!registrationsError && allRegistrations && allRegistrations.length > 0) {
+          const eventIds = allRegistrations.map(reg => reg.event_id)
+          const { data: eventsData, error: eventsError } = await supabase
+            .from('events')
+            .select('id, title, date, time, location')
+            .in('id', eventIds)
+          const eventsMap = eventsData ? new Map(eventsData.map(event => [event.id, event])) : new Map()
+          eventRegistrations = allRegistrations.map(reg => ({
+            id: reg.id,
+            eventId: reg.event_id,
+            eventTitle: eventsMap.get(reg.event_id)?.title || '',
+            eventDate: eventsMap.get(reg.event_id)?.date || '',
+            eventTime: eventsMap.get(reg.event_id)?.time || '',
+            eventLocation: eventsMap.get(reg.event_id)?.location || '',
+            status: reg.status,
+            registeredAt: reg.registered_at,
+            paymentVerified: reg.payment_verified
+          }))
+        }
+
+        // Return member verification result with all fields
+        res.json({
+          success: true,
+          message: 'Member verified successfully',
+          qrCodeType: 'member_card',
+          member: {
+            id: user.id,
+            memberId: user.member_id,
+            fullName: user.full_name,
+            email: user.email,
+            college: user.college,
+            batchYear: user.batch_year,
+            role: user.role,
+            createdAt: user.created_at
+          },
+          eventRegistrations: eventRegistrations,
+          currentEvent: event ? {
+            id: event.id,
+            title: event.title,
+            date: event.date,
+            time: event.time,
+            location: event.location
+          } : null,
+          currentRegistration: registration ? {
+            id: registration.id,
+            status: registration.status,
+            registeredAt: registration.registered_at,
+            paymentVerified: registration.payment_verified
+          } : null,
+          status: event ? (registration ? 'registered' : 'not_registered') : 'member_only'
+        })
+      } else {
+        // Handle event-specific QR code (fallback method)
+        const qrData = QRCodeService.verifyQRCode(qrCodeData)
+        if (!qrData) {
+          return res.status(400).json({ 
+            success: false, 
+            message: 'Invalid event QR code data' 
+          })
+        }
+
+        // Process check-in using database function
+        const { data: checkInResult, error } = await supabase
+          .rpc('process_event_check_in', {
+            p_check_in_code: qrData.checkInCode,
+            p_admin_id: adminId,
+            p_notes: notes
+          })
+
+        if (error) {
+          console.error('Check-in error:', error)
+          return res.status(500).json({ 
+            success: false, 
+            message: 'Check-in processing failed' 
+          })
+        }
+
+        const result = checkInResult[0]
+        
+        if (!result.success) {
+          return res.status(400).json({ 
+            success: false, 
+            message: result.message 
+          })
+        }
+
+        res.json({
+          success: true,
+          message: result.message,
+          qrCodeType: 'event_specific',
+          checkIn: {
+            userName: result.user_name,
+            eventTitle: result.event_title,
+            checkInTime: result.check_in_time
+          }
+        })
+      }
+    } catch (error) {
+      console.error('Error processing QR verification:', error)
+      res.status(500).json({ 
+        success: false, 
+        message: 'Server error' 
+      })
+    }
+  }
+)
+
+// @route   POST /api/qr-code/check-in-member
+// @desc    Process check-in using member card QR code (primary method)
+// @access  Admin
+router.post('/check-in-member', 
+  adminAuth,
+  [
+    body('qrCodeData').notEmpty().withMessage('QR code data is required'),
+    body('eventId').isUUID().withMessage('Valid event ID is required'),
+    body('notes').optional().isString()
+  ],
+  async (req: Request, res: Response) => {
+    try {
+      const errors = validationResult(req)
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ 
+          success: false, 
+          message: 'Validation failed', 
+          errors: errors.array() 
+        })
+      }
+
+      const { qrCodeData, eventId, notes } = req.body
+      const adminId = req.admin!.id
+      const supabase = getSupabase()
+
+      // Parse member card QR code data
+      let memberData: any = null
+      try {
+        const parsedData = JSON.parse(qrCodeData)
+        if ((parsedData.id || parsedData.memberId) && parsedData.name && parsedData.email && parsedData.qrType === 'member_card') {
+          memberData = parsedData
+        } else {
+          return res.status(400).json({ 
+            success: false, 
+            message: 'Invalid member card QR code format. Expected member card (with id/memberId, name, email, qrType).' 
+          })
+        }
+      } catch (parseError) {
+        console.error('QR code parse error:', parseError)
+        return res.status(400).json({ 
+          message: 'Invalid QR code data format' 
+        })
+      }
+
+      // Find user by member ID (try both id and memberId fields)
+      const memberIdToSearch = memberData.memberId || memberData.id
+      
+      const { data: user, error: userError } = await supabase
+        .from('users')
+        .select('*')
+        .eq('member_id', memberIdToSearch)
+        .single()
+
+      if (userError || !user) {
+        console.error('User lookup error:', userError)
+        console.error('Searched for member_id:', memberIdToSearch)
+        console.error('QR data received:', memberData)
+        return res.status(404).json({ 
+          success: false, 
+          message: 'Member not found. Please check if the QR code is valid.' 
+        })
+      }
+
+      // Get event details
+      const { data: event, error: eventError } = await supabase
+        .from('events')
+        .select('*')
+        .eq('id', eventId)
+        .single()
+
+      if (eventError || !event) {
+        return res.status(404).json({ 
+          success: false, 
+          message: 'Event not found' 
+        })
+      }
+
+      // Check if user is registered for this event
+      const { data: registration, error: registrationError } = await supabase
+        .from('event_registrations')
+        .select('*')
+        .eq('event_id', eventId)
+        .eq('user_id', user.id)
+        .eq('status', 'confirmed')
+        .single()
+
+      if (registrationError || !registration) {
+        return res.status(400).json({ 
+          success: false, 
+          message: 'User is not registered for this event' 
+        })
+      }
+
+      // Check if already checked in
+      if (registration.checked_in_at) {
+        return res.status(400).json({ 
+          success: false, 
+          message: 'User has already been checked in for this event' 
+        })
+      }
+
+      // For paid events, check if payment was verified
+      if (event.is_paid && !registration.payment_verified) {
+        return res.status(400).json({ 
+          success: false, 
+          message: 'Payment not verified. Cannot check in without payment verification.' 
+        })
+      }
+
+      // Process check-in
+      const { data: checkInResult, error: checkInError } = await supabase
+        .rpc('process_event_check_in', {
+          p_check_in_code: registration.check_in_code,
+          p_admin_id: adminId,
+          p_notes: notes
+        })
+
+      if (checkInError) {
+        console.error('Check-in error:', checkInError)
+        return res.status(500).json({ 
+          success: false, 
+          message: 'Check-in processing failed' 
+        })
+      }
+
+      const result = checkInResult[0]
+      
+      if (!result.success) {
+        return res.status(400).json({ 
+          success: false, 
+          message: result.message 
+        })
+      }
+
+      res.json({
+        success: true,
+        message: result.message,
+        qrCodeType: 'member_card',
+        checkIn: {
+          userName: result.user_name,
+          eventTitle: result.event_title,
+          checkInTime: result.check_in_time,
+          memberId: user.member_id,
+          college: user.college,
+          batchYear: user.batch_year,
+          role: user.role
+        }
+      })
+    } catch (error) {
+      console.error('Error processing member check-in:', error)
+      res.status(500).json({ 
+        success: false, 
+        message: 'Server error' 
+      })
+    }
+  }
+)
+
 export default router

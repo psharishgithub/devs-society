@@ -3,8 +3,9 @@ import { motion } from 'framer-motion'
 import { Link } from 'react-router-dom'
 import { Button } from '../components/ui/button'
 import { ParticlesComponent } from '../components/particles'
-import { Code, Building, Calendar as CalendarIcon, Hash, ArrowLeft, User, LogOut, Crown, Download, Share2, Smartphone, Trophy, Sparkles, QrCode, Mail, Phone, Shield, Copy, Check } from 'lucide-react'
+import { Code, Building, Calendar as CalendarIcon, Hash, ArrowLeft, User, LogOut, Crown, Download, Share2, Smartphone, Trophy, Sparkles, Mail, Phone, Shield, Copy, Check, Clock, MapPin, Award, GraduationCap, QrCode } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
+import { eventsAPI } from '../services/api'
 import QRCode from 'qrcode'
 
 export function MemberCard() {
@@ -13,38 +14,91 @@ export function MemberCard() {
   const [isDownloading, setIsDownloading] = useState(false)
   const [shareSupported, setShareSupported] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [eventRegistrations, setEventRegistrations] = useState<any[]>([])
+  const [isLoadingEvents, setIsLoadingEvents] = useState(false)
 
   useEffect(() => {
     // Check if Web Share API is supported
     setShareSupported('share' in navigator)
   }, [])
 
+  // Fetch user's event registrations
+  const fetchEventRegistrations = async () => {
+    if (!user) return
+    
+    setIsLoadingEvents(true)
+    try {
+      const response = await eventsAPI.getEventsWithPricing()
+      if (response.success) {
+        // Get registration status for each event
+        const registrations = await Promise.all(
+          response.events.map(async (event) => {
+            try {
+              const registrationResponse = await eventsAPI.checkRegistrationStatus(event.id)
+              if (registrationResponse.success && registrationResponse.isRegistered) {
+                return {
+                  eventId: event.id,
+                  eventTitle: event.title,
+                  eventDate: event.date,
+                  registrationStatus: registrationResponse.status,
+                  isPaid: event.isPaid || event.priceInfo?.isPaid || false
+                }
+              }
+              return null
+            } catch (error) {
+              console.error(`Failed to check registration for event ${event.id}:`, error)
+              return null
+            }
+          })
+        )
+        
+        // Filter out null values (events not registered for)
+        const validRegistrations = registrations.filter(reg => reg !== null)
+        setEventRegistrations(validRegistrations)
+      }
+    } catch (error) {
+      console.error('Failed to fetch event registrations:', error)
+    } finally {
+      setIsLoadingEvents(false)
+    }
+  }
+
   useEffect(() => {
     if (!user) return
 
-    // Generate QR code with member information
+    // Fetch event registrations first, then generate QR code
+    fetchEventRegistrations()
+  }, [user])
+
+  useEffect(() => {
+    if (!user) return
+
+    // Generate QR code with member information only (backend will fetch event registrations)
+    // Use a minimal format for better QR code scanning
     const memberData = {
-      id: user.memberId,
+      id: user.memberId, // This should match the member_id field in the database
+      memberId: user.memberId, // Include both id and memberId for compatibility
       name: user.fullName,
       email: user.email,
       role: user.role,
       college: user.college,
-      batch: user.batchYear,
-      portal: 'https://portal.devs-society.com'
+      batchYear: user.batchYear,
+      qrType: 'member_card',
+      timestamp: new Date().toISOString()
     }
     
     QRCode.toDataURL(JSON.stringify(memberData), {
-      width: 200,
-      margin: 2,
+      width: 300, // Increased size for better scanning
+      margin: 1, // Reduced margin for more data density
       color: {
-        dark: '#0dcaf0',
-        light: '#000000'
+        dark: '#000000', // Black for better contrast
+        light: '#FFFFFF' // White background
       },
-      errorCorrectionLevel: 'M'
+      errorCorrectionLevel: 'L' // Lower error correction for smaller QR codes
     })
       .then(url => setQrCodeUrl(url))
       .catch(err => console.error('QR Code generation error:', err))
-  }, [user])
+  }, [user]) // Remove eventRegistrations dependency to avoid regeneration
 
   const getRoleIcon = (role: string) => {
     switch (role) {
@@ -62,93 +116,85 @@ export function MemberCard() {
   const getRoleColor = (role: string) => {
     switch (role) {
       case 'core-member':
-        return 'from-yellow-500 to-orange-500'
+        return 'from-yellow-500/20 via-yellow-600/20 to-orange-500/20'
       case 'board-member':
-        return 'from-purple-500 to-pink-500'
+        return 'from-purple-500/20 via-purple-600/20 to-indigo-500/20'
       case 'special-member':
-        return 'from-cyan-500 to-blue-500'
+        return 'from-cyan-500/20 via-cyan-600/20 to-blue-500/20'
       default:
-        return 'from-gray-500 to-gray-600'
+        return 'from-gray-500/20 via-gray-600/20 to-slate-500/20'
     }
   }
 
   const getRoleBadgeColor = (role: string) => {
     switch (role) {
       case 'core-member':
-        return 'bg-yellow-500/20 text-yellow-400 border-yellow-400/30'
+        return 'border-yellow-500/50 text-yellow-400 bg-yellow-500/10'
       case 'board-member':
-        return 'bg-purple-500/20 text-purple-400 border-purple-400/30'
+        return 'border-purple-500/50 text-purple-400 bg-purple-500/10'
       case 'special-member':
-        return 'bg-cyan-500/20 text-cyan-400 border-cyan-400/30'
+        return 'border-cyan-500/50 text-cyan-400 bg-cyan-500/10'
       default:
-        return 'bg-gray-500/20 text-gray-400 border-gray-400/30'
+        return 'border-gray-500/50 text-gray-400 bg-gray-500/10'
+    }
+  }
+
+  const getRoleDisplayName = (role: string) => {
+    switch (role) {
+      case 'core-member':
+        return 'Core Member'
+      case 'board-member':
+        return 'Board Member'
+      case 'special-member':
+        return 'Special Member'
+      case 'regular-member':
+        return 'Regular Member'
+      default:
+        return 'Member'
     }
   }
 
   const downloadCard = async () => {
-    if (!user) return
+    if (!user || isDownloading) return
 
     setIsDownloading(true)
     try {
-      // Create a canvas to render the card
       const canvas = document.createElement('canvas')
       const ctx = canvas.getContext('2d')
+      if (!ctx) return
       
-      if (!ctx) throw new Error('Canvas not supported')
-
-      // Set canvas dimensions (business card size)
       canvas.width = 800
       canvas.height = 500
 
       // Create gradient background
       const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height)
-      gradient.addColorStop(0, '#1a1a2e')
-      gradient.addColorStop(0.5, '#16213e')
-      gradient.addColorStop(1, '#0f172a')
-      
+      gradient.addColorStop(0, '#0f172a')
+      gradient.addColorStop(1, '#1e293b')
       ctx.fillStyle = gradient
       ctx.fillRect(0, 0, canvas.width, canvas.height)
 
-      // Add border
-      ctx.strokeStyle = '#00bcd4'
-      ctx.lineWidth = 4
-      ctx.strokeRect(2, 2, canvas.width - 4, canvas.height - 4)
-
-      // Add text content
+      // Add text
       ctx.fillStyle = '#ffffff'
-      ctx.font = 'bold 32px Arial'
-      ctx.fillText('DEVS SOCIETY', 50, 80)
+      ctx.font = 'bold 24px Arial'
+      ctx.fillText('DEVS SOCIETY', 50, 50)
+      ctx.fillText('Digital Member Card', 50, 80)
 
-      ctx.font = 'bold 28px Arial'
-      ctx.fillText(user.fullName, 50, 140)
+      ctx.font = 'bold 20px Arial'
+      ctx.fillText(user.fullName, 50, 120)
+      ctx.fillText(`ID: ${user.memberId}`, 50, 150)
 
-      ctx.font = '20px Arial'
-      ctx.fillStyle = '#a0a0a0'
-      ctx.fillText(user.role.replace('-', ' ').toUpperCase(), 50, 170)
-      ctx.fillText(`ID: ${user.memberId}`, 50, 200)
-      ctx.fillText(user.email, 50, 230)
-      ctx.fillText(user.college, 50, 260)
-
-      // Add QR code if available
-      if (qrCodeUrl) {
-        const qrImg = new Image()
-        qrImg.onload = () => {
-          ctx.drawImage(qrImg, canvas.width - 180, 50, 120, 120)
+      ctx.font = '16px Arial'
+      ctx.fillText(`Role: ${getRoleDisplayName(user.role)}`, 50, 180)
+      ctx.fillText(`College: ${user.college}`, 50, 210)
+      ctx.fillText(`Batch: ${user.batchYear}`, 50, 240)
+      ctx.fillText(`Email: ${user.email}`, 50, 270)
+      ctx.fillText(`Member since: ${new Date(user.createdAt).toLocaleDateString()}`, 50, 300)
           
           // Download the canvas as image
           const link = document.createElement('a')
           link.download = `${user.fullName.replace(/\s+/g, '_')}_DEVS_Card.png`
           link.href = canvas.toDataURL('image/png')
           link.click()
-        }
-        qrImg.src = qrCodeUrl
-      } else {
-        // Download without QR code
-        const link = document.createElement('a')
-        link.download = `${user.fullName.replace(/\s+/g, '_')}_DEVS_Card.png`
-        link.href = canvas.toDataURL('image/png')
-        link.click()
-      }
     } catch (error) {
       console.error('Download failed:', error)
     } finally {
@@ -200,102 +246,84 @@ export function MemberCard() {
   }
 
   return (
-    <div className="min-h-screen bg-black text-white overflow-hidden relative">
-      <ParticlesComponent className="fixed inset-0" />
-      
-      {/* Gradient overlay */}
-      <div className="absolute inset-0 bg-gradient-to-br from-purple-950/20 via-black to-cyan-950/20"></div>
+    <div className="min-h-screen bg-black text-white relative overflow-hidden">
+      <ParticlesComponent />
       
       {/* Header */}
-      <header className="relative z-10 p-6 border-b border-gray-800/50 backdrop-blur-md">
-        <div className="container mx-auto flex justify-between items-center">
-          <motion.div 
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.6 }}
-            className="flex items-center gap-3"
-          >
-            <Link to="/portal">
-              <Button variant="ghost" size="sm" className="text-gray-300 hover:text-cyan-400">
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                Back to Dashboard
-              </Button>
-            </Link>
-          </motion.div>
+      <div className="relative z-10 p-6">
+        <div className="flex items-center justify-between">
+          <Link to="/portal" className="flex items-center gap-2 text-cyan-400 hover:text-cyan-300 transition-colors">
+            <ArrowLeft className="h-5 w-5" />
+            <span>Back to Dashboard</span>
+          </Link>
           
-          <motion.div 
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.6, delay: 0.2 }}
-            className="flex items-center gap-4"
-          >
-            <div className="p-2 rounded-lg bg-gradient-to-r from-purple-500 to-cyan-500 animate-pulse-glow">
-              <Code className="h-8 w-8 text-white" />
-            </div>
-            <div>
-              <span className="text-2xl font-bold font-techie">DEVS</span>
-              <span className="text-lg text-gray-400 ml-2">Card</span>
-            </div>
-          </motion.div>
-          
-          <motion.div
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.6, delay: 0.4 }}
-          >
+          <div className="flex items-center gap-4">
             <Button 
+              onClick={copyMemberId}
               variant="outline" 
               size="sm" 
-              onClick={handleLogout}
-              className="border-red-500/50 text-red-400 hover:bg-red-500/10 hover:text-red-300"
+              className="border-cyan-500/50 text-cyan-400 hover:bg-cyan-500/20"
             >
-              <LogOut className="h-4 w-4" />
-              Logout
+              {copied ? (
+                <>
+                  <Check className="h-4 w-4 mr-2" />
+                  Copied!
+                </>
+              ) : (
+                <>
+                  <Copy className="h-4 w-4 mr-2" />
+                  Copy ID
+                </>
+              )}
             </Button>
-          </motion.div>
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <div className="relative z-10 min-h-[calc(100vh-120px)] flex items-center justify-center px-4 py-12">
-        <div className="w-full max-w-4xl">
-          {/* Card Actions */}
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.2 }}
-            className="flex justify-center gap-4 mb-8"
-          >
+            
             <Button 
-              variant="gradient" 
               onClick={downloadCard}
               disabled={isDownloading}
-              className="group"
+              variant="outline"
+              size="sm"
+              className="border-green-500/50 text-green-400 hover:bg-green-500/20"
             >
-              {isDownloading ? (
-                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2"></div>
-              ) : (
-                <Download className="h-4 w-4 mr-2 group-hover:scale-110 transition-transform" />
-              )}
-              {isDownloading ? 'Generating...' : 'Download Card'}
+              <Download className="h-4 w-4 mr-2" />
+              {isDownloading ? 'Downloading...' : 'Download'}
             </Button>
             
             {shareSupported && (
-              <Button variant="outline" onClick={shareCard} className="border-cyan-400/50 text-cyan-400 hover:bg-cyan-500/10">
+              <Button
+                onClick={shareCard}
+                variant="outline"
+                size="sm"
+                className="border-blue-500/50 text-blue-400 hover:bg-blue-500/20"
+              >
                 <Share2 className="h-4 w-4 mr-2" />
                 Share
               </Button>
             )}
-          </motion.div>
+            
+            <Button
+              onClick={handleLogout}
+              variant="outline"
+              size="sm"
+              className="border-red-500/50 text-red-400 hover:bg-red-500/20"
+            >
+              <LogOut className="h-4 w-4 mr-2" />
+              Logout
+            </Button>
+          </div>
+        </div>
+      </div>
 
-          {/* Digital Member Card */}
+      {/* Main Content */}
+      <div className="relative z-10 px-6 pb-12">
+        <div className="max-w-4xl mx-auto">
+          {/* Card */}
           <motion.div
             initial={{ opacity: 0, y: 40, rotateY: -10 }}
             animate={{ opacity: 1, y: 0, rotateY: 0 }}
             transition={{ duration: 0.8, delay: 0.4 }}
             className="perspective-1000"
           >
-            <div className={`relative mx-auto max-w-2xl bg-gradient-to-br ${getRoleColor(user.role)} p-1 rounded-2xl shadow-2xl hover:scale-105 transition-all duration-300`}>
+            <div className={`relative mx-auto max-w-4xl bg-gradient-to-br ${getRoleColor(user.role)} p-1 rounded-2xl shadow-2xl hover:scale-105 transition-all duration-300`}>
               {/* Card Inner Content */}
               <div className="bg-gradient-to-br from-gray-900 via-black to-gray-800 rounded-xl p-8 relative overflow-hidden">
                 {/* Decorative elements */}
@@ -316,86 +344,138 @@ export function MemberCard() {
                   
                   <div className={`px-4 py-2 rounded-full border ${getRoleBadgeColor(user.role)} text-sm font-medium flex items-center gap-2`}>
                     {getRoleIcon(user.role)}
-                    {user.role.replace('-', ' ').toUpperCase()}
+                    {getRoleDisplayName(user.role)}
                   </div>
                 </div>
 
-                {/* Member Information */}
-                <div className="relative z-10 grid md:grid-cols-2 gap-8">
+                {/* Member Information Grid */}
+                <div className="relative z-10 grid grid-cols-1 lg:grid-cols-2 gap-8">
                   {/* Left Side - Member Details */}
                   <div className="space-y-6">
-                    {/* Profile Picture */}
-                    <div className="flex items-center gap-4">
-                      <div className="w-20 h-20 bg-gradient-to-r from-cyan-500 to-purple-500 rounded-full flex items-center justify-center">
-                        {user.photoUrl ? (
-                          <img 
-                            src={user.photoUrl} 
-                            alt={user.fullName}
-                            className="w-full h-full rounded-full object-cover"
-                          />
-                        ) : (
-                          <User className="h-10 w-10 text-white" />
-                        )}
-                      </div>
-                      <div>
-                        <h2 className="text-2xl font-bold text-white">{user.fullName}</h2>
-                        <p className="text-gray-300">{user.role.replace('-', ' ').toUpperCase()}</p>
+                    {/* Profile Photo */}
+                    <div className="space-y-4">
+                      <h3 className="text-lg font-semibold text-cyan-400 flex items-center gap-2">
+                        <User className="h-5 w-5" />
+                        Profile Photo
+                      </h3>
+                      
+                      <div className="flex justify-center">
+                        <div className="w-32 h-32 rounded-full overflow-hidden border-4 border-gradient-cyber bg-gradient-to-br from-purple-500/20 to-cyan-500/20">
+                          {user.photoUrl ? (
+                            <img 
+                              src={user.photoUrl} 
+                              alt={user.fullName}
+                              className="w-full h-full object-cover"
+                              onError={(e) => {
+                                // Fallback to default avatar if image fails to load
+                                e.currentTarget.style.display = 'none'
+                                e.currentTarget.nextElementSibling?.classList.remove('hidden')
+                              }}
+                            />
+                          ) : null}
+                          <div className={`w-full h-full flex items-center justify-center ${user.photoUrl ? 'hidden' : ''}`}>
+                            <User className="h-16 w-16 text-gray-400" />
+                          </div>
+                        </div>
                       </div>
                     </div>
 
-                    {/* Member Details */}
+                    {/* Basic Info */}
                     <div className="space-y-4">
+                      <h3 className="text-lg font-semibold text-cyan-400 flex items-center gap-2">
+                        <User className="h-5 w-5" />
+                        Member Information
+                      </h3>
+                      
+                      <div className="space-y-3">
                       <div className="flex items-center gap-3 text-gray-300">
                         <Hash className="h-5 w-5 text-cyan-400" />
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium">ID:</span>
-                          <span className="font-mono">{user.memberId}</span>
-                          <Button 
-                            variant="ghost" 
-                            size="sm" 
-                            onClick={copyMemberId}
-                            className="p-1 h-auto hover:bg-gray-700/50"
-                          >
-                            {copied ? (
-                              <Check className="h-3 w-3 text-green-400" />
-                            ) : (
-                              <Copy className="h-3 w-3 text-gray-400" />
-                            )}
-                          </Button>
+                          <span className="font-medium">Member ID:</span>
+                          <span className="text-white">{user.memberId}</span>
                         </div>
+                        
+                        <div className="flex items-center gap-3 text-gray-300">
+                          <User className="h-5 w-5 text-cyan-400" />
+                          <span className="font-medium">Full Name:</span>
+                          <span className="text-white">{user.fullName}</span>
                       </div>
 
                       <div className="flex items-center gap-3 text-gray-300">
                         <Mail className="h-5 w-5 text-cyan-400" />
-                        <span>{user.email}</span>
+                          <span className="font-medium">Email:</span>
+                          <span className="text-white">{user.email}</span>
                       </div>
 
                       <div className="flex items-center gap-3 text-gray-300">
                         <Phone className="h-5 w-5 text-cyan-400" />
-                        <span>{user.phone}</span>
+                          <span className="font-medium">Phone:</span>
+                          <span className="text-white">{user.phone || 'Not provided'}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Academic Info */}
+                    <div className="space-y-4">
+                      <h3 className="text-lg font-semibold text-purple-400 flex items-center gap-2">
+                        <GraduationCap className="h-5 w-5" />
+                        Academic Information
+                      </h3>
+                      
+                      <div className="space-y-3">
+                      <div className="flex items-center gap-3 text-gray-300">
+                          <Building className="h-5 w-5 text-purple-400" />
+                          <span className="font-medium">College:</span>
+                          <span className="text-white">{user.college}</span>
                       </div>
 
                       <div className="flex items-center gap-3 text-gray-300">
-                        <Building className="h-5 w-5 text-cyan-400" />
-                        <span>{user.college}</span>
+                          <CalendarIcon className="h-5 w-5 text-purple-400" />
+                          <span className="font-medium">Batch Year:</span>
+                          <span className="text-white">{user.batchYear}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Membership Info */}
+                    <div className="space-y-4">
+                      <h3 className="text-lg font-semibold text-green-400 flex items-center gap-2">
+                        <Award className="h-5 w-5" />
+                        Membership Details
+                      </h3>
+                      
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-3 text-gray-300">
+                          <Clock className="h-5 w-5 text-green-400" />
+                          <span className="font-medium">Member Since:</span>
+                          <span className="text-white">{new Date(user.createdAt).toLocaleDateString()}</span>
                       </div>
 
                       <div className="flex items-center gap-3 text-gray-300">
-                        <CalendarIcon className="h-5 w-5 text-cyan-400" />
-                        <span>{user.batchYear}</span>
-                      </div>
-
-                      <div className="flex items-center gap-3 text-gray-300">
-                        <Shield className="h-5 w-5 text-cyan-400" />
-                        <span>Active Member</span>
+                          <Shield className="h-5 w-5 text-green-400" />
+                          <span className="font-medium">Status:</span>
+                          <span className="text-green-400">Active Member</span>
+                        </div>
                       </div>
                     </div>
                   </div>
 
-                  {/* Right Side - QR Code */}
-                  <div className="flex flex-col items-center justify-center">
-                    <div className="bg-white p-4 rounded-xl mb-4">
-                      {qrCodeUrl ? (
+                  {/* Right Side - Additional Details & QR Info */}
+                  <div className="space-y-6">
+                                         {/* QR Code Display */}
+                     <div className="space-y-4">
+                       <h3 className="text-lg font-semibold text-cyan-400 flex items-center gap-2">
+                         <QrCode className="h-5 w-5" />
+                         Verification QR Code
+                       </h3>
+                       
+                       <div className="p-4 rounded-lg bg-gradient-to-r from-cyan-500/10 to-blue-500/10 border border-cyan-500/20">
+                         <div className="text-center">
+                           <div className="bg-white p-4 rounded-xl mb-4 inline-block">
+                             {isLoadingEvents ? (
+                               <div className="w-40 h-40 bg-gray-200 flex items-center justify-center">
+                                 <div className="w-8 h-8 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin"></div>
+                               </div>
+                             ) : qrCodeUrl ? (
                         <img 
                           src={qrCodeUrl} 
                           alt="Member QR Code" 
@@ -408,11 +488,39 @@ export function MemberCard() {
                       )}
                     </div>
                     
-                    <div className="text-center">
-                      <p className="text-cyan-300 text-sm font-medium">Scan for verification</p>
-                      <p className="text-gray-400 text-xs mt-1">
-                        Use this QR code for event check-ins and member verification
-                      </p>
+                           <p className="text-cyan-300 text-sm font-medium mb-2">Primary Verification QR</p>
+                           <p className="text-gray-400 text-xs">
+                             {isLoadingEvents 
+                               ? 'Loading event registrations...' 
+                               : `Contains member info and ${eventRegistrations.length} event registration${eventRegistrations.length !== 1 ? 's' : ''}`
+                             }
+                           </p>
+                         </div>
+                       </div>
+                     </div>
+
+                    {/* Quick Actions */}
+                    <div className="space-y-4">
+                      <h3 className="text-lg font-semibold text-purple-400 flex items-center gap-2">
+                        <MapPin className="h-5 w-5" />
+                        Quick Actions
+                      </h3>
+                      
+                      <div className="grid grid-cols-2 gap-3">
+                        <Link to="/events">
+                          <Button className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white">
+                            <CalendarIcon className="h-4 w-4 mr-2" />
+                            View Events
+                          </Button>
+                        </Link>
+                        
+                        <Link to="/portal">
+                          <Button variant="outline" className="w-full border-purple-500/50 text-purple-400 hover:bg-purple-500/20">
+                            <User className="h-4 w-4 mr-2" />
+                            Dashboard
+                          </Button>
+                        </Link>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -445,7 +553,7 @@ export function MemberCard() {
               </div>
               <p className="text-gray-300 text-sm leading-relaxed">
                 Your digital member card is always accessible on your device. 
-                Use the QR code for quick verification at events and activities.
+                The QR code serves as your primary verification method for all events and activities.
               </p>
             </div>
           </motion.div>

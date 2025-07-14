@@ -16,7 +16,7 @@ const statusMessages: Record<StatusType, string> = {
   scanning: 'Position the QR code within the frame',
   processing: 'Processing... Please wait.',
   success: 'Check-in successful!',
-  invalid: 'Invalid QR code. Please try again.',
+  invalid: 'Invalid QR code. Continue scanning...',
   already_checked_in: 'Already checked in.',
   error: 'An error occurred. Please try again.'
 };
@@ -26,7 +26,7 @@ const statusIcons: Record<StatusType, React.ReactNode> = {
   scanning: <QrCode className="h-6 w-6 text-gray-400 mx-auto mb-2" />,
   processing: <Loader2 className="h-6 w-6 text-purple-500 mx-auto mb-2 animate-spin" />,
   success: <CheckCircle className="h-6 w-6 text-green-500 mx-auto mb-2" />,
-  invalid: <AlertCircle className="h-6 w-6 text-red-500 mx-auto mb-2" />,
+  invalid: <AlertCircle className="h-6 w-6 text-yellow-500 mx-auto mb-2" />,
   already_checked_in: <AlertCircle className="h-6 w-6 text-yellow-500 mx-auto mb-2" />,
   error: <AlertCircle className="h-6 w-6 text-red-500 mx-auto mb-2" />
 };
@@ -37,6 +37,7 @@ const QRScanner: React.FC<QRScannerProps> = ({ isOpen, onClose, onScan, title = 
   const [selectedCamera, setSelectedCamera] = useState<string>('');
   const [error, setError] = useState<string>('');
   const [status, setStatus] = useState<StatusType>('idle');
+  const [lastInvalidMessage, setLastInvalidMessage] = useState<string>('');
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const scannerContainerRef = useRef<HTMLDivElement>(null);
 
@@ -95,12 +96,16 @@ const QRScanner: React.FC<QRScannerProps> = ({ isOpen, onClose, onScan, title = 
       const html5QrCode = new Html5Qrcode('qr-reader');
       scannerRef.current = html5QrCode;
       const config = {
-        fps: 10,
-        qrbox: { width: 250, height: 250 },
+        fps: 15, // Increased FPS for better responsiveness
+        qrbox: { width: 300, height: 300 }, // Larger scanning area
         aspectRatio: 1.0,
         showTorchButtonIfSupported: true,
         showZoomSliderIfSupported: true,
-        defaultZoomValueIfSupported: 2,
+        defaultZoomValueIfSupported: 1, // Start with no zoom for better detection
+        disableFlip: false, // Allow flipping for better detection
+        experimentalFeatures: {
+          useBarCodeDetectorIfSupported: true
+        }
       };
       await html5QrCode.start(
         selectedCamera,
@@ -111,25 +116,52 @@ const QRScanner: React.FC<QRScannerProps> = ({ isOpen, onClose, onScan, title = 
             const result = await onScan(decodedText);
             if (result === 'success') {
               setStatus('success');
+              // Only stop scanner and close on success
+              setTimeout(() => {
+                stopScanner();
+                onClose();
+                setStatus('idle');
+              }, 1500);
             } else if (result === 'already_checked_in') {
               setStatus('already_checked_in');
+              // Stop scanner and close on already checked in
+              setTimeout(() => {
+                stopScanner();
+                onClose();
+                setStatus('idle');
+              }, 1500);
             } else if (result === 'invalid') {
               setStatus('invalid');
+              setLastInvalidMessage('Invalid QR code detected. Continue scanning...');
+              // Continue scanning - don't stop
+              setTimeout(() => {
+                setStatus('scanning');
+                setLastInvalidMessage('');
+              }, 2000);
             } else {
               setStatus('error');
+              setLastInvalidMessage('Error processing QR code. Continue scanning...');
+              // Continue scanning on error
+              setTimeout(() => {
+                setStatus('scanning');
+                setLastInvalidMessage('');
+              }, 2000);
             }
-          } catch {
+          } catch (err) {
             setStatus('error');
+            setLastInvalidMessage('Error processing QR code. Continue scanning...');
+            // Continue scanning on exception
+            setTimeout(() => {
+              setStatus('scanning');
+              setLastInvalidMessage('');
+            }, 2000);
           }
-          setTimeout(() => {
-            stopScanner();
-            onClose();
-            setStatus('idle');
-          }, 1500);
         },
         (errorMessage) => {
+          // Don't change status for QR code not found errors - just continue scanning
           if (!errorMessage.includes('No QR code found')) {
-            setStatus('invalid');
+            // Only show error for actual camera/technical issues
+            console.log('Scanner error:', errorMessage);
           }
         }
       );
@@ -221,7 +253,12 @@ const QRScanner: React.FC<QRScannerProps> = ({ isOpen, onClose, onScan, title = 
         {/* Status Message */}
         <div className="text-center py-4">
           {statusIcons[status]}
-          <p className={`text-base font-medium ${status === 'success' ? 'text-green-600' : status === 'invalid' ? 'text-red-600' : status === 'already_checked_in' ? 'text-yellow-600' : status === 'processing' ? 'text-purple-600' : 'text-gray-600'}`}>{statusMessages[status]}</p>
+          <p className={`text-base font-medium ${status === 'success' ? 'text-green-600' : status === 'invalid' ? 'text-yellow-600' : status === 'already_checked_in' ? 'text-yellow-600' : status === 'processing' ? 'text-purple-600' : 'text-gray-600'}`}>
+            {statusMessages[status]}
+          </p>
+          {lastInvalidMessage && (
+            <p className="text-sm text-yellow-600 mt-1">{lastInvalidMessage}</p>
+          )}
         </div>
         {error && (
           <div className="text-center text-red-600 mt-2 text-sm">{error}</div>

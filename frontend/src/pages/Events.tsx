@@ -4,9 +4,9 @@ import { Link, useNavigate } from 'react-router-dom'
 import { Button } from '../components/ui/button'
 import { Input } from '../components/ui/input'
 import { ParticlesComponent } from '../components/particles'
-import { Code, Calendar, MapPin, CheckCircle, Clock, LogOut, Users, Star, ExternalLink, ArrowLeft, Search, Filter, Plus, RefreshCw, AlertCircle, UserCheck, UserX, Calendar as CalendarIcon, QrCode, FileText, CreditCard } from 'lucide-react'
+import { Code, Calendar, MapPin, CheckCircle, Clock, LogOut, Users, Star, ExternalLink, ArrowLeft, Search, Filter, Plus, RefreshCw, AlertCircle, UserCheck, UserX, Calendar as CalendarIcon, QrCode, FileText, CreditCard, User } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
-import { eventsAPI, qrCodeAPI } from '../services/api'
+import { eventsAPI } from '../services/api'
 import { eventFormAPI } from '../services/eventFormApi'
 import EventFormViewer from '../components/EventFormViewer'
 import type { Event } from '../services/api'
@@ -35,9 +35,7 @@ export function Events() {
   const [error, setError] = useState('')
   const [showFormViewer, setShowFormViewer] = useState(false)
   const [selectedEventForForm, setSelectedEventForForm] = useState<Event | null>(null)
-  const [showQRCode, setShowQRCode] = useState(false)
-  const [selectedEventForQR, setSelectedEventForQR] = useState<Event | null>(null)
-  const [qrCodeData, setQrCodeData] = useState<any>(null)
+
   
   // Payment-related state
   const [selectedAdminId, setSelectedAdminId] = useState('')
@@ -279,21 +277,7 @@ export function Events() {
     }
   }
 
-  const handleShowQRCode = async (event: Event) => {
-    if (!event.isRegistered) return
 
-    try {
-      const response = await qrCodeAPI.getMyEventQR(event.id)
-      if (response.success) {
-        setQrCodeData(response.qrCode)
-        setSelectedEventForQR(event)
-        setShowQRCode(true)
-      }
-    } catch (error: any) {
-      console.error('Error getting QR code:', error)
-      setError('Failed to load QR code. Please try again.')
-    }
-  }
 
   const handleLogout = () => {
     if (confirm('Are you sure you want to logout?')) {
@@ -814,15 +798,15 @@ export function Events() {
                             </Button>
                           ) : event.isRegistered && !isEventPast(event.date) ? (
                             <>
-                              <Button 
-                                variant="cyan" 
-                                onClick={() => handleShowQRCode(event)}
-                                className="group"
-                              >
-                                <QrCode className="h-4 w-4 mr-2 group-hover:scale-110 transition-transform" />
-                                My QR Code
-                              </Button>
-
+                              <Link to="/card">
+                                <Button 
+                                  variant="cyan" 
+                                  className="group"
+                                >
+                                  <User className="h-4 w-4 mr-2 group-hover:scale-110 transition-transform" />
+                                  My Card
+                                </Button>
+                              </Link>
                             </>
                           ) : null}
 
@@ -858,54 +842,7 @@ export function Events() {
         />
       )}
 
-      {/* QR Code Modal */}
-      {showQRCode && selectedEventForQR && qrCodeData && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4"
-        >
-          <motion.div
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0.9, opacity: 0 }}
-            className="bg-gray-900 rounded-2xl max-w-md w-full"
-          >
-            <div className="p-6 text-center">
-              <div className="bg-white p-4 rounded-xl mb-4 inline-block">
-                <img 
-                  src={qrCodeData.url} 
-                  alt="Event QR Code" 
-                  className="w-48 h-48"
-                />
-              </div>
-              
-              <div className="space-y-2 mb-6">
-                <p className="text-cyan-300 font-medium">Check-in Code</p>
-                <p className="text-white font-mono text-lg tracking-wider bg-gray-800 py-2 px-4 rounded-lg">
-                  {qrCodeData.checkInCode}
-                </p>
-                <p className="text-gray-400 text-sm">
-                  Show this QR code or provide the code above for event check-in
-                </p>
-              </div>
 
-              <Button 
-                variant="outline" 
-                onClick={() => {
-                  setShowQRCode(false)
-                  setSelectedEventForQR(null)
-                  setQrCodeData(null)
-                }}
-                className="w-full"
-              >
-                Close
-              </Button>
-            </div>
-          </motion.div>
-        </motion.div>
-      )}
 
       {/* Admin Selection Modal */}
       {showAdminSelection && eventForPayment && (

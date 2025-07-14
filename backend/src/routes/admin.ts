@@ -417,23 +417,25 @@ router.get('/users', adminAuth, async (req, res) => {
   try {
     const { page = 1, limit = 20, search, role } = req.query
     const admin = await AdminService.findById(req.admin!.id)
-    if (!admin?.assignedCollege) {
+    if (!admin) {
+      return res.status(404).json({ success: false, message: 'Admin not found' })
+    }
+    if (admin.role !== 'super-admin' && !admin.assignedCollege) {
       return res.status(403).json({ success: false, message: 'No college assignment found' })
     }
-    const college = await CollegeService.findById(admin.assignedCollege.id)
-    if (!college) {
-      return res.status(403).json({ success: false, message: 'College not found' })
-    }
-    let users
-    let totalCount = 0
+    // For superadmin, skip college checks or use fallback values
+    const college = admin.role === 'super-admin' ? null : (admin.assignedCollege ? await CollegeService.findById(admin.assignedCollege.id) : null);
+    // When calling getUsersByCollege, always pass a string
+    let users = [];
+    let totalCount = 0;
     if (search) {
       users = await UserService.searchUsers(search as string)
-      users = users.filter(user => user.college === college.name)
+      users = users.filter(user => user.college === (college ? college.name : ''))
       totalCount = users.length
       const skip = (Number(page) - 1) * Number(limit)
       users = users.slice(skip, skip + Number(limit))
     } else {
-      users = await UserService.getUsersByCollege(college.name)
+      users = await UserService.getUsersByCollege(college ? college.name : '')
       if (role && role !== 'all') {
         users = users.filter(user => user.role === role)
       }
@@ -452,9 +454,9 @@ router.get('/users', adminAuth, async (req, res) => {
         hasPrev: Number(page) > 1
       },
       college: {
-        name: college.name,
-        code: college.code,
-        location: college.location
+        name: college?.name,
+        code: college?.code,
+        location: college?.location
       }
     })
   } catch (error) {
@@ -472,7 +474,10 @@ router.get('/events', adminAuth, async (req, res) => {
   try {
     const { page = 1, limit = 20, search, eventType } = req.query
     const admin = await AdminService.findById(req.admin!.id)
-    if (!admin?.assignedCollege) {
+    if (!admin) {
+      return res.status(404).json({ success: false, message: 'Admin not found' })
+    }
+    if (admin.role !== 'super-admin' && !admin.assignedCollege) {
       return res.status(403).json({ success: false, message: 'No college assignment found' })
     }
     let events
@@ -552,7 +557,10 @@ router.post('/events',
       }
 
       const admin = await AdminService.findById(req.admin!.id)
-      if (!admin?.assignedCollege) {
+      if (!admin) {
+        return res.status(404).json({ success: false, message: 'Admin not found' })
+      }
+      if (admin.role !== 'super-admin' && !admin.assignedCollege) {
         return res.status(403).json({ 
           success: false, 
           message: 'No college assignment found' 

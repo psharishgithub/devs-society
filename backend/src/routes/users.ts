@@ -1,7 +1,25 @@
 import express from 'express'
+import multer from 'multer'
 import UserService from '../services/userService'
 import auth from '../middleware/auth'
 import EventService from '../services/eventService'
+import storageService from '../services/supabaseStorage'
+
+// Configure multer for file uploads
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 5 * 1024 * 1024, // 5MB limit
+  },
+  fileFilter: (req, file, cb) => {
+    // Only allow images
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true)
+    } else {
+      cb(new Error('Only image files are allowed'))
+    }
+  }
+})
 
 const router = express.Router()
 
@@ -32,12 +50,12 @@ router.get('/profile', auth, async (req, res) => {
 })
 
 // @route   PUT /api/users/profile
-// @desc    Update user profile
+// @desc    Update user profile (with optional photo upload)
 // @access  Private
-router.put('/profile', auth, async (req, res) => {
+router.put('/profile', auth, upload.single('photo'), async (req, res) => {
   try {
     const updates = req.body
-    const allowedUpdates = ['fullName', 'phone', 'college', 'batchYear']
+    const allowedUpdates = ['fullName', 'phone', 'college', 'batchYear', 'photoUrl']
     const filteredUpdates: any = {}
 
     // Only allow certain fields to be updated
@@ -46,6 +64,51 @@ router.put('/profile', auth, async (req, res) => {
         filteredUpdates[field] = updates[field]
       }
     })
+
+    // Handle photo upload if provided
+    if (req.file) {
+      console.log('Photo upload received:', req.file.originalname)
+      console.log('File size:', req.file.size, 'bytes')
+      console.log('File mimetype:', req.file.mimetype)
+      
+      try {
+        // Check if Supabase service role key is configured
+        if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+          console.error('SUPABASE_SERVICE_ROLE_KEY not configured')
+          return res.status(500).json({
+            success: false,
+            message: 'Server configuration error: Supabase service role key not found'
+          })
+        }
+
+        // Upload to Supabase storage
+        const uploadResult = await storageService.updateProfilePhoto(
+          req.file.buffer,
+          req.file.originalname,
+          req.user.id,
+          updates.photoUrl // Pass old photo URL for cleanup
+        )
+
+        console.log('Upload result:', uploadResult)
+
+        if (uploadResult.success && uploadResult.url) {
+          filteredUpdates.photoUrl = uploadResult.url
+          console.log('Photo URL updated:', uploadResult.url)
+        } else {
+          console.error('Upload failed:', uploadResult.error)
+          return res.status(400).json({
+            success: false,
+            message: uploadResult.error || 'Failed to upload photo'
+          })
+        }
+      } catch (error) {
+        console.error('Photo upload error:', error)
+        return res.status(500).json({
+          success: false,
+          message: 'Failed to upload photo'
+        })
+      }
+    }
 
     const user = await UserService.updateUser(req.user.id, filteredUpdates)
     if (!user) {

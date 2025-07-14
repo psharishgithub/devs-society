@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Link } from 'react-router-dom'
 import { Button } from '../components/ui/button'
 import { ParticlesComponent } from '../components/particles'
-import { Code, CreditCard, Calendar, LogOut, User, Crown, Sparkles, ArrowRight, Bell, Settings, Activity, Users, Trophy, Clock, Plus, RefreshCw } from 'lucide-react'
+import { Code, CreditCard, Calendar, LogOut, User, Crown, Sparkles, ArrowRight, Bell, Settings, Activity, Users, Trophy, Clock, Plus, RefreshCw, X } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { eventsAPI, usersAPI } from '../services/api'
 import type { Event, UserStats } from '../services/api'
@@ -31,6 +31,10 @@ export function Dashboard() {
   const [isLoadingEvents, setIsLoadingEvents] = useState(true)
   const [isLoadingStats, setIsLoadingStats] = useState(true)
   const [isRefreshing, setIsRefreshing] = useState(false)
+  const [showEditProfile, setShowEditProfile] = useState(false)
+  const [selectedPhoto, setSelectedPhoto] = useState<File | null>(null)
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null)
+  const [isUploading, setIsUploading] = useState(false)
   const [notifications, setNotifications] = useState([
     { id: 1, message: 'Welcome to DEVS Portal!', type: 'info', unread: true },
     { id: 2, message: 'New event: React Workshop next week', type: 'event', unread: true }
@@ -84,6 +88,62 @@ export function Dashboard() {
   const handleLogout = () => {
     if (confirm('Are you sure you want to logout?')) {
       logout()
+    }
+  }
+
+  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        alert('Please select an image file')
+        return
+      }
+      
+      // Validate file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        alert('File size must be less than 5MB')
+        return
+      }
+      
+      setSelectedPhoto(file)
+      
+      // Create preview
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        setPhotoPreview(e.target?.result as string)
+      }
+      reader.readAsDataURL(file)
+    }
+  }
+
+  const handleEditProfile = async (updatedData: any) => {
+    if (!user) {
+      alert('User not found. Please try logging in again.')
+      return
+    }
+
+    try {
+      setIsUploading(true)
+      
+      // Update profile with photo file
+      const response = await usersAPI.updateProfileWithPhoto(updatedData, selectedPhoto || undefined)
+      
+      if (response.success) {
+        // Refresh user data
+        await refreshUser()
+        setShowEditProfile(false)
+        setSelectedPhoto(null)
+        setPhotoPreview(null)
+        alert('Profile updated successfully!')
+      } else {
+        alert(`Failed to update profile: ${response.error || 'Unknown error'}`)
+      }
+    } catch (error) {
+      console.error('Error updating profile:', error)
+      alert('Failed to update profile. Please try again.')
+    } finally {
+      setIsUploading(false)
     }
   }
 
@@ -235,6 +295,32 @@ export function Dashboard() {
             transition={{ duration: 0.8 }}
             className="text-center mb-16"
           >
+            {/* Profile Photo */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.8, delay: 0.3 }}
+              className="mb-6"
+            >
+              <div className="w-24 h-24 mx-auto rounded-full overflow-hidden border-4 border-gradient-cyber bg-gradient-to-br from-purple-500/20 to-cyan-500/20">
+                {user.photoUrl ? (
+                  <img 
+                    src={user.photoUrl} 
+                    alt={user.fullName}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      // Fallback to default avatar if image fails to load
+                      e.currentTarget.style.display = 'none'
+                      e.currentTarget.nextElementSibling?.classList.remove('hidden')
+                    }}
+                  />
+                ) : null}
+                <div className={`w-full h-full flex items-center justify-center ${user.photoUrl ? 'hidden' : ''}`}>
+                  <User className="h-12 w-12 text-gray-400" />
+                </div>
+              </div>
+            </motion.div>
+
             <div className="inline-flex items-center gap-2 bg-gradient-to-r from-purple-500/10 to-cyan-500/10 rounded-full px-6 py-2 border border-purple-500/20 mb-6">
               {getRoleIcon(user.role)}
               <span className={`text-sm font-medium ${getRoleColor(user.role)}`}>
@@ -263,7 +349,7 @@ export function Dashboard() {
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, delay: 0.2 }}
-            className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-16"
+            className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-16 max-w-4xl mx-auto"
           >
             <div className="backdrop-glass rounded-xl p-6 border border-cyan-400/30 text-center">
               <div className="w-12 h-12 bg-cyan-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -289,6 +375,7 @@ export function Dashboard() {
               <p className="text-gray-400 text-sm">Upcoming Events</p>
             </div>
 
+            {/* Points feature commented out for now
             <div className="backdrop-glass rounded-xl p-6 border border-yellow-400/30 text-center">
               <div className="w-12 h-12 bg-yellow-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
                 <Trophy className="h-6 w-6 text-yellow-400" />
@@ -296,6 +383,7 @@ export function Dashboard() {
               <h3 className="text-2xl font-bold text-yellow-400 mb-1">{stats.points}</h3>
               <p className="text-gray-400 text-sm">Points</p>
             </div>
+            */}
           </motion.div>
 
           {/* Main Content Grid */}
@@ -431,7 +519,7 @@ export function Dashboard() {
                                </div>
                             </div>
                           </div>
-                          <Link to={`/events/${event.id}`}>
+                          <Link to={`/events/`}>
                             <Button variant="ghost" size="sm" className="text-cyan-400 hover:text-cyan-300">
                               View
                             </Button>
@@ -508,24 +596,26 @@ export function Dashboard() {
               >
                 <h3 className="text-lg font-bold text-white mb-4">Quick Actions</h3>
                 <div className="space-y-3">
-                  <Link to="/events/new" className="block">
+                  <Link to="/card" className="block">
                     <Button variant="ghost" className="w-full justify-start text-gray-300 hover:text-cyan-400">
-                      <Plus className="h-4 w-4 mr-2" />
-                      Create Event
+                      <CreditCard className="h-4 w-4 mr-2" />
+                      My Card
                     </Button>
                   </Link>
-                  <Link to="/profile" className="block">
-                    <Button variant="ghost" className="w-full justify-start text-gray-300 hover:text-purple-400">
-                      <Settings className="h-4 w-4 mr-2" />
-                      Edit Profile
-                    </Button>
-                  </Link>
-                  <Link to="/members" className="block">
+                  <Link to="/events" className="block">
                     <Button variant="ghost" className="w-full justify-start text-gray-300 hover:text-green-400">
-                      <Users className="h-4 w-4 mr-2" />
-                      View Members
+                      <Calendar className="h-4 w-4 mr-2" />
+                      View Events
                     </Button>
                   </Link>
+                  <Button 
+                    variant="ghost" 
+                    className="w-full justify-start text-gray-300 hover:text-purple-400"
+                    onClick={() => setShowEditProfile(true)}
+                  >
+                    <Settings className="h-4 w-4 mr-2" />
+                    Edit Profile
+                  </Button>
                 </div>
               </motion.div>
             </div>
@@ -547,6 +637,136 @@ export function Dashboard() {
           </motion.div>
         </div>
       </div>
+
+      {/* Edit Profile Modal */}
+      {showEditProfile && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-black border border-gray-700 rounded-xl p-6 w-full max-w-md"
+          >
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-bold text-white">Edit Profile</h3>
+              <button
+                onClick={() => setShowEditProfile(false)}
+                className="p-2 text-gray-400 hover:text-white transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <form onSubmit={(e) => {
+              e.preventDefault()
+              const formData = new FormData(e.target as HTMLFormElement)
+              const updatedData = {
+                fullName: formData.get('fullName') as string,
+                phone: formData.get('phone') as string,
+                college: formData.get('college') as string,
+                batchYear: formData.get('batchYear') as string,
+              }
+              handleEditProfile(updatedData)
+            }} className="space-y-4">
+              {/* Profile Photo Upload */}
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Profile Photo</label>
+                <div className="flex items-center gap-4">
+                  <div className="w-20 h-20 bg-gradient-to-r from-cyan-500 to-purple-500 rounded-full flex items-center justify-center overflow-hidden">
+                    {photoPreview ? (
+                      <img src={photoPreview} alt="Preview" className="w-full h-full object-cover" />
+                    ) : user.photoUrl ? (
+                      <img src={user.photoUrl} alt={user.fullName} className="w-full h-full object-cover" />
+                    ) : (
+                      <User className="h-10 w-10 text-white" />
+                    )}
+                  </div>
+                  <div className="flex-1">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handlePhotoChange}
+                      className="hidden"
+                      id="photo-upload"
+                    />
+                    <label
+                      htmlFor="photo-upload"
+                      className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 bg-purple-600/20 text-purple-300 rounded-lg hover:bg-purple-600/30 transition-colors"
+                    >
+                      <Settings className="h-4 w-4" />
+                      {selectedPhoto ? 'Change Photo' : 'Upload Photo'}
+                    </label>
+                    {selectedPhoto && (
+                      <p className="text-xs text-gray-400 mt-1">
+                        Selected: {selectedPhoto.name}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Full Name</label>
+                <input
+                  type="text"
+                  name="fullName"
+                  defaultValue={user.fullName}
+                  required
+                  className="w-full px-3 py-2 bg-white/10 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:border-purple-500 focus:outline-none"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Phone</label>
+                <input
+                  type="tel"
+                  name="phone"
+                  defaultValue={user.phone}
+                  required
+                  className="w-full px-3 py-2 bg-white/10 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:border-purple-500 focus:outline-none"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">College</label>
+                <input
+                  type="text"
+                  name="college"
+                  defaultValue={user.college}
+                  required
+                  className="w-full px-3 py-2 bg-white/10 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:border-purple-500 focus:outline-none"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Batch Year</label>
+                <input
+                  type="text"
+                  name="batchYear"
+                  defaultValue={user.batchYear}
+                  required
+                  className="w-full px-3 py-2 bg-white/10 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:border-purple-500 focus:outline-none"
+                />
+              </div>
+              
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setShowEditProfile(false)}
+                  className="flex-1 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isUploading}
+                  className="flex-1 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isUploading ? 'Updating...' : 'Update Profile'}
+                </button>
+              </div>
+            </form>
+          </motion.div>
+        </div>
+      )}
     </div>
   )
 } 

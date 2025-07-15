@@ -210,7 +210,7 @@ export function Dashboard() {
             className="flex items-center gap-2 sm:gap-3"
           >
             {/* Logo and Title */}
-            <div className="flex flex-col items-start sm:items-start">
+            {/* <div className="flex flex-col items-start sm:items-start">
               <span className="text-3xl sm:text-5xl font-bold font-techie tracking-tight leading-none text-white" style={{letterSpacing: '-0.04em'}}>
                 DEVS
               </span>
@@ -218,7 +218,12 @@ export function Dashboard() {
                 CODE. COFFEE. REPEAT ...
               </span>
             </div>
-            <span className="text-sm sm:text-lg text-gray-400 ml-1 sm:ml-2 hidden">Portal</span>
+            <span className="text-sm sm:text-lg text-gray-400 ml-1 sm:ml-2 hidden">Portal</span> */}
+                <img 
+                    src="/images/devslogo.png" 
+                    alt="DEVS" 
+                    className="h-28 sm:h-36 w-auto mb-2"
+                  />
           </motion.div>
           
           {/* Mobile Menu Button */}

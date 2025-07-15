@@ -114,9 +114,11 @@ export function Login() {
             className="flex items-center gap-3"
           >
             <div className="flex flex-col items-start sm:items-start">
-              <span className="text-3xl sm:text-5xl font-bold font-techie tracking-tight leading-none text-white" style={{letterSpacing: '-0.04em'}}>
-                DEVS
-              </span>
+            <img 
+                    src="/images/DEVS_White.png" 
+                    alt="DEVS" 
+                    className="h-10 sm:h-15 w-auto mb-2"
+                  />
             
             </div>
             <span className="text-sm sm:text-lg text-gray-400 ml-1 sm:ml-2">Portal</span>
@@ -157,12 +159,14 @@ export function Login() {
             <div className="relative z-10">
               <div className="text-center mb-8">
                 <div className="flex flex-col items-center justify-center mb-8">
-                  <span className="text-4xl sm:text-5xl font-bold font-techie tracking-tight leading-none text-white" style={{letterSpacing: '-0.04em'}}>
-                    DEVS
-                  </span>
-                  <span className="text-xs sm:text-base font-techie tracking-widest text-gray-300 mt-1" style={{letterSpacing: '0.2em'}}>
+                  <img 
+                    src="/images/devslogo.png" 
+                    alt="DEVS" 
+                    className="h-24 sm:h-32 w-auto mb-2"
+                  />
+                  {/* <span className="text-xs sm:text-base font-techie tracking-widest text-gray-300 mt-1" style={{letterSpacing: '0.2em'}}>
                     CODE. COFFEE. REPEAT ...
-                  </span>
+                  </span> */}
                 </div>
                 <motion.h1 
                   initial={{ opacity: 0, y: 20 }}

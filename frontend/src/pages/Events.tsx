@@ -508,9 +508,14 @@ export function Events() {
             className="flex items-center gap-2 sm:gap-3"
           >
             <div className="flex flex-col items-start sm:items-start">
-              <span className="text-3xl sm:text-5xl font-bold font-techie tracking-tight leading-none text-white" style={{letterSpacing: '-0.04em'}}>
+              {/* <span className="text-3xl sm:text-5xl font-bold font-techie tracking-tight leading-none text-white" style={{letterSpacing: '-0.04em'}}>
                 DEVS
-              </span>
+              </span> */}
+              <img 
+                    src="/images/DEVS_White.png" 
+                    alt="DEVS" 
+                    className="h-10 sm:h-12 w-auto mb-2"
+                  />
          
             </div>
             <span className="text-sm sm:text-lg text-gray-400 ml-1 sm:ml-2">Events</span>

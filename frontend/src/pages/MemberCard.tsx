@@ -273,12 +273,15 @@ export function MemberCard() {
             initial={{ opacity: 0, x: 0 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.6, delay: 0.1 }}
-            className="flex items-center gap-2 sm:gap-3"
+            className="flex flex-col items-center justify-center"
           >
-            
-            <div>
-              <span className="text-xl sm:text-2xl font-bold font-techie">DEVS</span>
-              <span className="text-sm sm:text-lg text-gray-400 ml-1 sm:ml-2">Member Card</span>
+            <div className="flex flex-col items-center">
+              <img 
+                src="/images/DEVS_White.png" 
+                alt="DEVS" 
+                className="h-10 sm:h-12 w-auto mb-1"
+              />
+              <span className="text-sm sm:text-lg text-gray-400">Member Card</span>
             </div>
           </motion.div>
           
@@ -352,12 +355,9 @@ export function MemberCard() {
                     
                     {/* Card Header */}
                     <div className="relative z-10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 sm:gap-0 mb-6 sm:mb-8">
-                      <div className="flex items-center gap-2 sm:gap-3">
-                     
-                        <div>
-                          <h1 className="text-xl sm:text-2xl font-bold font-techie text-white">DEVS SOCIETY</h1>
-                          <p className="text-cyan-300 text-xs sm:text-sm">Digital Member Card</p>
-                        </div>
+                      <div className="flex flex-col items-center sm:items-start">
+                        <h1 className="text-xl sm:text-2xl font-bold font-techie text-white text-center sm:text-left">DEVS SOCIETY</h1>
+                        <p className="text-cyan-300 text-xs sm:text-sm text-center sm:text-left">Digital Member Card</p>
                       </div>
                       
                       <div className={`px-3 sm:px-4 py-2 rounded-full border ${getRoleBadgeColor(user.role)} text-xs sm:text-sm font-medium flex items-center gap-1 sm:gap-2 justify-center sm:justify-start`}>

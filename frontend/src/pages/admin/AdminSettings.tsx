@@ -309,7 +309,7 @@ export function AdminSettings() {
         </div>
         
         <div className="mt-6">
-          <Button variant="yellow">
+          <Button variant="green">
             <Save className="h-4 w-4" />
             Save Notification Settings
           </Button>

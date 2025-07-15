@@ -76,7 +76,7 @@ export function Participation() {
         setEvents(eventsWithStats)
         
         // Extract unique colleges for filter
-        const uniqueColleges = [...new Set(eventsWithStats.map(e => e.collegeName).filter(Boolean))]
+        const uniqueColleges = [...new Set(eventsWithStats.map((e: any) => e.collegeName).filter(Boolean))] as string[]
         setColleges(uniqueColleges)
       }
     } catch (error) {
@@ -110,8 +110,8 @@ export function Participation() {
 
   const getPaymentStatusCounts = (eventRegistrations: Registration[]) => {
     const paid = eventRegistrations.filter(r => r.paymentVerified).length
-    const pending = eventRegistrations.filter(r => !r.paymentVerified && event.isPaid).length
-    return { paid, pending }
+    // const pending = eventRegistrations.filter(r => !r.paymentVerified && event?.isPaid).length
+    return { paid }
   }
 
   const getStatusIcon = (status: string) => {

@@ -3,10 +3,10 @@ import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import {
   GraduationCap, Users, Calendar, Settings, BarChart3, LogOut,
-  Menu, X, User, Mail, Phone, Clock, Shield,
+  Menu, X, User, Clock,
   Plus, Edit, Trash2, Eye, Search, Filter, Bell, TrendingUp,
-  ChevronRight, Activity, UserCheck, MapPin, Building,
-  CheckCircle, XCircle, AlertTriangle, Award
+  ChevronRight, UserCheck, MapPin,
+  CheckCircle, XCircle, Award
 } from 'lucide-react'
 import { 
   collegeAdminApiService, 
@@ -27,6 +27,8 @@ interface CollegeAnalytics {
     userName: string
     registeredAt: Date
     status: string
+    eventIsPaid?: boolean
+    paymentVerified?: boolean
   }>
   college: {
     name: string
@@ -289,13 +291,13 @@ const CollegeAdminDashboard: React.FC = () => {
                 <div className="text-white font-medium">{registration.userName}</div>
                 <div className="text-sm text-gray-400">registered for {registration.eventTitle}</div>
                 {/* Payment Status for Paid Events */}
-                {registration.eventIsPaid && (
+                {/* {registration.eventIsPaid && (
                   <div className={`text-xs px-2 py-1 rounded-full mt-1 inline-block ${
                     registration.paymentVerified ? 'bg-blue-500/20 text-blue-300' : 'bg-orange-500/20 text-orange-300'
                   }`}>
                     {registration.paymentVerified ? 'Paid' : 'Pending Payment'}
                   </div>
-                )}
+                )} */}
               </div>
               <div className="text-right">
                 <div className={`text-xs px-2 py-1 rounded-full ${

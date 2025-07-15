@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
@@ -37,7 +37,6 @@ export interface FormField {
 }
 
 interface EventFormBuilderProps {
-  eventId: string
   initialForm?: {
     id?: string
     title: string
@@ -60,7 +59,6 @@ const fieldTypes = [
 ]
 
 export const EventFormBuilder: React.FC<EventFormBuilderProps> = ({
-  eventId,
   initialForm,
   onSave,
   onCancel
@@ -98,19 +96,14 @@ export const EventFormBuilder: React.FC<EventFormBuilderProps> = ({
   }
 
   const moveField = (fieldId: string, direction: 'up' | 'down') => {
-    const currentIndex = fields.findIndex(field => field.id === fieldId)
-    if (
-      (direction === 'up' && currentIndex === 0) ||
-      (direction === 'down' && currentIndex === fields.length - 1)
-    ) {
-      return
-    }
-
     const newFields = [...fields]
+    const currentIndex = newFields.findIndex(f => f.id === fieldId)
     const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1
     
     // Swap fields
-    [newFields[currentIndex], newFields[targetIndex]] = [newFields[targetIndex], newFields[currentIndex]]
+    const temp = newFields[currentIndex]
+    newFields[currentIndex] = newFields[targetIndex]
+    newFields[targetIndex] = temp
     
     // Update order
     newFields.forEach((field, index) => {

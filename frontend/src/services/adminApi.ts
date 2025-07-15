@@ -66,7 +66,7 @@ export interface Admin {
   username: string
   email: string
   fullName: string
-  role: 'super-admin' | 'admin'
+  role: 'super-admin' | 'admin' | 'college-admin'
   assignedCollege?: {
     id: string
     name: string
@@ -75,6 +75,11 @@ export interface Admin {
   }
   batchYear?: number // Year of the batch this admin represents
   tenureInfo?: {
+    startDate: Date
+    endDate?: Date
+    isActive: boolean
+  }
+  tenure?: {
     startDate: Date
     endDate?: Date
     isActive: boolean

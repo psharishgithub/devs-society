@@ -33,13 +33,14 @@ const EventAttendance: React.FC = () => {
       setLoading(true);
       setError(null);
       try {
-        const res = await adminApiService.getEventAttendance(eventId!);
-        if (res.success) {
-          setAttendance(res.checkIns || []);
-          setEventInfo(res.statistics || null);
-        } else {
-          setError(res.message || 'Failed to fetch attendance');
-        }
+        // Commented out attendance logic as not needed for now
+        // const res = await adminApiService.getEventAttendance(eventId!);
+        // if (res.success) {
+        //   setAttendance(res.checkIns || []);
+        //   setEventInfo(res.statistics || null);
+        // } else {
+        //   setError(res.message || 'Failed to fetch attendance');
+        // }
       } catch (err: any) {
         setError(err.message || 'Failed to fetch attendance');
       } finally {

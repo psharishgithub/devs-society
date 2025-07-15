@@ -2,7 +2,7 @@ const express = require('express')
 const router = express.Router()
 const Razorpay = require('razorpay')
 const nodemailer = require('nodemailer')
-const crypto = require('crypto')
+const { createHmac } = require('crypto') // Import only the needed function
 const auth = require('../middleware/auth')
 const EventService = require('../services/eventService')
 const UserService = require('../services/userService')
@@ -14,7 +14,7 @@ const razorpay = new Razorpay({
 })
 
 // Create Razorpay order for event registration
-router.post('/:id/razorpay-order', auth, async (req, res) => {
+router.post('/:id/razorpay-order', auth, async (req: any, res: any) => {
   try {
     const { adminId } = req.body
     const eventId = req.params.id
@@ -35,7 +35,7 @@ router.post('/:id/razorpay-order', auth, async (req, res) => {
     // Handle different event types
     if (event.eventType === 'open-to-all' && event.adminPricing && event.adminPricing.length > 0) {
       // Find the specific admin pricing
-      const adminPricing = event.adminPricing.find(p => p.adminId === adminId)
+      const adminPricing = event.adminPricing.find((p: any) => p.adminId === adminId)
       if (!adminPricing) {
         return res.status(400).json({ success: false, message: 'Invalid admin selection' })
       }
@@ -79,7 +79,7 @@ router.post('/:id/razorpay-order', auth, async (req, res) => {
 })
 
 // Verify Razorpay payment
-router.post('/:id/verify-payment', auth, async (req, res) => {
+router.post('/:id/verify-payment', auth, async (req: any, res: any) => {
   try {
     const { 
       razorpay_payment_id, 
@@ -93,8 +93,7 @@ router.post('/:id/verify-payment', auth, async (req, res) => {
 
     // Verify signature
     const body = razorpay_order_id + "|" + razorpay_payment_id
-    const expectedSignature = crypto
-      .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
+    const expectedSignature = createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
       .update(body.toString())
       .digest("hex")
 
@@ -116,7 +115,7 @@ router.post('/:id/verify-payment', auth, async (req, res) => {
     const registration = await EventService.registerForEventWithPayment(eventId, userId, {
       paymentId: razorpay_payment_id,
       amount: event.isPaid ? (event.eventType === 'open-to-all' ? 
-        event.adminPricing?.find(p => p.adminId === adminId)?.amount || event.price : 
+        event.adminPricing?.find((p: any) => p.adminId === adminId)?.amount || event.price : 
         event.price) : 0,
       currency: 'INR',
       verified: true
@@ -154,7 +153,7 @@ Event Details:
 Payment Details:
 - Payment ID: ${razorpay_payment_id}
 - Amount: ₹${event.isPaid ? (event.eventType === 'open-to-all' ? 
-  event.adminPricing?.find(p => p.adminId === adminId)?.amount || event.price : 
+  event.adminPricing?.find((p: any) => p.adminId === adminId)?.amount || event.price : 
   event.price) : 0}
 
 Registration Status: ${registration.status}

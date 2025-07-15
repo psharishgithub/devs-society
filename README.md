@@ -13,6 +13,9 @@ A complete member portal system for the Devs Society with React frontend and Nod
 - 👨‍💼 **Admin Management** - Multi-level admin system (Super Admin, College Admin)
 - 🎨 **Modern UI** - Dark theme with cyan accents, particle effects, and glitch animations
 - 📱 **Responsive Design** - Works seamlessly on desktop and mobile devices
+- 🔒 **Security Features** - JWT authentication, input validation, file upload security
+- 📊 **Analytics Dashboard** - Comprehensive analytics and reporting for Super Admins
+- 🏢 **Internal Booking System** - Super Admins can register users for events internally
 
 ## Technology Stack
 
@@ -25,16 +28,18 @@ A complete member portal system for the Devs Society with React frontend and Nod
 - **React Particles** for background effects
 - **QR Code generation** for membership cards
 - **Lucide React** for icons
+- **HTML5 QR Scanner** for QR code scanning
 
 ### Backend
 - **Node.js** with Express
 - **TypeScript** for type safety
-- **MongoDB** with Mongoose
+- **Supabase** (PostgreSQL) for database
 - **JWT** for authentication
 - **Multer** for file uploads
 - **Express Validator** for input validation
 - **Helmet** for security
 - **CORS** for cross-origin requests
+- **QR Code generation** for event check-ins
 
 ## Quick Start
 
@@ -52,7 +57,7 @@ Access the admin panel at: `/admin/login`
 
 ### Prerequisites
 - Node.js (v18 or higher)
-- MongoDB (local or cloud instance)
+- Supabase account and project
 - npm or yarn package manager
 
 ### Installation
@@ -76,7 +81,7 @@ Access the admin panel at: `/admin/login`
    npm install
    
    # Create environment variables (copy from .env.example)
-   # Set your MongoDB URI and JWT secret
+   # Set your Supabase credentials and JWT secret
    
    # Create the predefined super admin
    npx ts-node src/scripts/createSuperAdmin.ts
@@ -94,8 +99,10 @@ Create a `.env` file in the backend directory:
 PORT=5000
 NODE_ENV=development
 
-# Database
-MONGODB_URI=mongodb://localhost:27017/devs-portal
+# Supabase Configuration
+SUPABASE_URL=your_supabase_project_url
+SUPABASE_ANON_KEY=your_supabase_anon_key
+SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
 
 # JWT Secret
 JWT_SECRET=your_super_secret_jwt_key_here
@@ -103,6 +110,49 @@ JWT_SECRET=your_super_secret_jwt_key_here
 # Frontend URL (for CORS)
 FRONTEND_URL=http://localhost:5173
 ```
+
+## Deployment
+
+### Frontend (Netlify)
+1. Push your code to GitHub
+2. Connect your repository to Netlify
+3. Set build command: `npm run build`
+4. Set publish directory: `dist`
+5. Add environment variables in Netlify dashboard
+
+### Backend (Render)
+1. Push your code to GitHub
+2. Create a new Web Service on Render
+3. Connect your repository
+4. Set build command: `npm install && npm run build`
+5. Set start command: `npm start`
+6. Add environment variables in Render dashboard
+
+## Security Features
+
+### Authentication & Authorization
+- **JWT-based authentication** with secure token handling
+- **Role-based access control** (Super Admin, College Admin, Member)
+- **Protected routes** with middleware validation
+- **Session management** with secure logout
+
+### Input Validation & Sanitization
+- **Express Validator** for all API endpoints
+- **Frontend validation** for user inputs
+- **SQL injection prevention** through parameterized queries
+- **XSS protection** with proper content sanitization
+
+### File Upload Security
+- **File type validation** (images only: JPG, PNG)
+- **File size limits** (max 2MB for profile photos)
+- **Secure storage** in Supabase Storage with RLS policies
+- **Virus scanning** recommendations for production
+
+### CORS & API Security
+- **Restricted CORS** to frontend domains only
+- **Rate limiting** recommendations for production
+- **Helmet.js** for security headers
+- **Environment variable protection**
 
 ## Usage
 
@@ -113,6 +163,8 @@ FRONTEND_URL=http://localhost:5173
 - **Admin Management**: Create and assign college admins with batch years
 - **Global User Management**: View and manage all users across colleges
 - **Global Event Management**: Create and manage events for all colleges
+- **Analytics Dashboard**: Comprehensive analytics and reporting
+- **Internal Booking**: Register users for events internally (bypassing payment)
 - **System Settings**: Configure portal-wide settings
 
 #### College Admin
@@ -123,7 +175,7 @@ FRONTEND_URL=http://localhost:5173
 
 ### Event Management with Custom Forms
 
-1. **Create Event**: Admins can create events with basic details
+1. **Create Event**: Admins can create events with basic details and optional thumbnails
 2. **Custom Forms**: Build registration forms with various field types:
    - Text input, Email, Phone, Number, Date
    - Dropdown selections, Checkboxes, Text areas
@@ -203,6 +255,12 @@ FRONTEND_URL=http://localhost:5173
 - `GET /api/admin/profile` - Get admin profile (admin)
 - `GET /api/super-admin/colleges` - Manage colleges (super admin)
 - `POST /api/super-admin/admins` - Create admin with college assignment (super admin)
+- `GET /api/super-admin/dashboard` - Get dashboard statistics (super admin)
+- `GET /api/super-admin/analytics` - Get analytics data (super admin)
+
+#### Internal Booking (Super Admin)
+- `POST /api/superadmin/internal-booking` - Create internal booking
+- `GET /api/superadmin/internal-bookings` - List internal bookings
 
 ## Project Structure
 
@@ -216,6 +274,7 @@ portal.devs-society/
 │   │   │   ├── loading-screen.tsx
 │   │   │   ├── EventFormBuilder.tsx # Custom form builder
 │   │   │   ├── QRCodeScanner.tsx    # QR code scanning interface
+│   │   │   ├── QRScanner.tsx        # QR scanner component
 │   │   │   ├── AdminDashboard.tsx   # Admin dashboard router
 │   │   │   ├── SuperAdminDashboard.tsx # Super admin interface
 │   │   │   └── CollegeAdminDashboard.tsx # College admin interface
@@ -224,18 +283,23 @@ portal.devs-society/
 │   │   │   ├── Register.tsx
 │   │   │   ├── Dashboard.tsx
 │   │   │   ├── MemberCard.tsx
-│   │   │   └── Events.tsx
+│   │   │   ├── Events.tsx
+│   │   │   └── superadmin/
+│   │   │       ├── Participation.tsx
+│   │   │       └── InternalBooking.tsx
 │   │   ├── services/        # API services
 │   │   │   ├── api.ts       # Main API service
 │   │   │   ├── adminApi.ts  # Admin API service
-│   │   │   └── eventFormApi.ts # Event forms & QR API
+│   │   │   ├── eventApi.ts  # Event API service
+│   │   │   ├── eventFormApi.ts # Event forms & QR API
+│   │   │   └── superAdminApiService.ts # Super admin API
 │   │   ├── lib/
 │   │   │   └── utils.ts     # Utility functions
 │   │   └── App.tsx          # Main app component
 │   └── public/              # Static assets
 ├── backend/                  # Node.js backend
 │   ├── src/
-│   │   ├── models/          # MongoDB schemas
+│   │   ├── models/          # Supabase database models
 │   │   │   ├── User.ts
 │   │   │   ├── Event.ts
 │   │   │   ├── Admin.ts
@@ -258,12 +322,15 @@ portal.devs-society/
 │   │   │   └── qrCode.ts        # QR code API
 │   │   ├── database/        # Database configuration
 │   │   │   ├── supabase.ts  # Supabase client
-│   │   │   └── schemas/     # Database schemas
+│   │   │   ├── schemas/     # Database schemas
+│   │   │   └── migrations/  # Database migrations
 │   │   ├── middleware/      # Custom middleware
 │   │   │   ├── auth.ts
+│   │   │   ├── adminAuth.ts
 │   │   │   └── roleBasedAuth.ts # Admin authentication
 │   │   ├── scripts/         # Utility scripts
-│   │   │   └── createSuperAdmin.ts # Super admin creation
+│   │   │   ├── createSuperAdmin.ts # Super admin creation
+│   │   │   └── setupUploads.ts # File upload setup
 │   │   └── index.ts         # Server entry point
 │   └── uploads/             # File upload directory
 └── README.md
@@ -283,14 +350,35 @@ The portal inherits the beautiful design from the main Devs Technical Society we
 - **Admin Interface**: Professional admin dashboards with role-based access
 - **Form Builder**: Drag-and-drop interface for creating custom forms
 - **QR Scanner**: Modern QR code scanning interface for check-ins
+- **Analytics Dashboard**: Comprehensive data visualization and reporting
+
+## Security Best Practices
+
+### Environment Variables
+- **Never commit secrets** to version control
+- **Use .env files** for local development
+- **Set environment variables** in deployment platforms
+- **Separate public and private keys** (Supabase anon vs service role)
+
+### File Uploads
+- **Validate file types** (images only)
+- **Limit file sizes** (max 2MB)
+- **Use secure storage** (Supabase Storage with RLS)
+- **Scan for malware** in production
+
+### API Security
+- **Validate all inputs** on both frontend and backend
+- **Use HTTPS** in production
+- **Implement rate limiting** for API endpoints
+- **Set proper CORS** headers
+
+### Database Security
+- **Use Row Level Security** (RLS) in Supabase
+- **Parameterized queries** to prevent SQL injection
+- **Regular backups** of production data
+- **Monitor access logs** for suspicious activity
 
 ## Known Issues & Limitations
-
-### Image Upload During Registration
-- **Issue**: Photo upload during student registration is currently disabled
-- **Reason**: File upload handling needs to be configured for the production environment
-- **Workaround**: Users can update their profile photos after registration through the dashboard
-- **Status**: Will be fixed in the next update
 
 ### Camera-based QR Scanning
 - **Issue**: Camera-based QR code scanning is not yet implemented
@@ -319,9 +407,18 @@ This project is part of the Devs Society ecosystem and follows the same licensin
 For support, please contact the Devs Society team or create an issue in the repository.
 
 ## Recent Updates
----
 
-### Version 2.0 - Event Management & QR System(13/07/25)
+### Version 2.1 - Security & Analytics (Latest)
+- ✅ Enhanced security with input validation and file upload protection
+- ✅ Added comprehensive analytics dashboard for Super Admins
+- ✅ Implemented internal booking system for Super Admins
+- ✅ Improved mobile responsiveness across all pages
+- ✅ Added event thumbnail support
+- ✅ Enhanced QR code system with better error handling
+- ✅ Updated branding with consistent DEVS logo styling
+- ✅ Added deployment guides for Render and Netlify
+
+### Version 2.0 - Event Management & QR System (13/07/25)
 - ✅ Added predefined super admin login
 - ✅ Implemented multi-level admin system (Super Admin, College Admin)
 - ✅ Created customizable event registration forms
@@ -335,10 +432,11 @@ For support, please contact the Devs Society team or create an issue in the repo
 
 ### Upcoming Features
 - 📷 Camera-based QR code scanning
-- 📸 Photo upload during registration
 - 📊 Advanced analytics and reporting
 - 📧 Email notifications for events
 - 🔔 Push notifications
 - 📱 Mobile app for QR scanning
+- 🔐 Two-factor authentication
+- 📈 Real-time dashboard updates
 
 **Built with ❤️ by the Devs Society Team** 

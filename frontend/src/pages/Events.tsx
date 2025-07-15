@@ -512,10 +512,10 @@ export function Events() {
                 DEVS
               </span> */}
               <img 
-                    src="/images/DEVS_White.png" 
-                    alt="DEVS" 
-                    className="h-10 sm:h-12 w-auto mb-2"
-                  />
+                src="/images/DEVS_White.png" 
+                alt="DEVS" 
+                className="h-8 sm:h-10 md:h-12 w-auto mb-2"
+              />
          
             </div>
             <span className="text-sm sm:text-lg text-gray-400 ml-1 sm:ml-2">Events</span>

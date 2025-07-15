@@ -111,14 +111,14 @@ export function Login() {
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.6 }}
-            className="flex items-center gap-3"
+            className="flex items-center gap-2 sm:gap-4"
           >
             <div className="flex flex-col items-start sm:items-start">
             <img 
-                    src="/images/DEVS_White.png" 
-                    alt="DEVS" 
-                    className="h-10 sm:h-15 w-auto mb-2"
-                  />
+              src="/images/DEVS_White.png" 
+              alt="DEVS" 
+              className="h-6 sm:h-8 md:h-10 lg:h-12 w-auto mb-1 sm:mb-2"
+            />
             
             </div>
             <span className="text-sm sm:text-lg text-gray-400 ml-1 sm:ml-2">Portal</span>
@@ -127,14 +127,14 @@ export function Login() {
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.6, delay: 0.2 }}
-            className="flex items-center gap-4"
+            className="flex items-center gap-2 sm:gap-4"
           >
-            <Link to="/login" className="text-sm text-cyan-400 font-medium px-4 py-2 rounded-lg border border-cyan-400/30 bg-cyan-950/20">
+            <Link to="/login" className="text-xs sm:text-sm text-cyan-400 font-medium px-2 sm:px-4 py-1 sm:py-2 rounded-lg border border-cyan-400/30 bg-cyan-950/20">
               Login
             </Link>
             <Link to="/register">
-              <Button variant="gradient" size="sm">
-                <Sparkles className="h-4 w-4" />
+              <Button variant="gradient" size="sm" className="text-xs sm:text-sm px-2 sm:px-4 py-1 sm:py-2">
+                <Sparkles className="h-3 w-3 sm:h-4 sm:w-4" />
                 Register
               </Button>
             </Link>
@@ -150,7 +150,7 @@ export function Login() {
           transition={{ duration: 0.8, type: "spring", stiffness: 100 }}
           className="w-full max-w-lg"
         >
-          <div className="backdrop-glass rounded-2xl p-8 border border-gradient-cyber shadow-2xl relative overflow-hidden">
+          <div className="backdrop-glass rounded-2xl p-4 sm:p-6 md:p-8 border border-gradient-cyber shadow-2xl relative overflow-hidden">
             {/* Decorative elements */}
             <div className="absolute top-0 left-0 w-full h-1 bg-gradient-cyber"></div>
             <div className="absolute -top-px -left-px w-20 h-20 bg-gradient-to-br from-cyan-400/20 to-transparent rounded-full blur-xl"></div>
@@ -162,7 +162,7 @@ export function Login() {
                   <img 
                     src="/images/devslogo.png" 
                     alt="DEVS" 
-                    className="h-24 sm:h-32 w-auto mb-2"
+                    className="h-12 sm:h-16 md:h-20 lg:h-24 xl:h-32 w-auto mb-2 sm:mb-4"
                   />
                   {/* <span className="text-xs sm:text-base font-techie tracking-widest text-gray-300 mt-1" style={{letterSpacing: '0.2em'}}>
                     CODE. COFFEE. REPEAT ...
@@ -172,7 +172,7 @@ export function Login() {
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.6, delay: 0.3 }}
-                  className="text-4xl font-bold mb-3 font-techie"
+                  className="text-2xl sm:text-3xl md:text-4xl font-bold mb-2 sm:mb-3 font-techie"
                 >
                   <span className="text-gradient">Welcome Back</span>
                 </motion.h1>
@@ -180,7 +180,7 @@ export function Login() {
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.6, delay: 0.4 }}
-                  className="text-gray-300 text-lg"
+                  className="text-gray-300 text-sm sm:text-base md:text-lg"
                 >
                   Sign in to access your DEVS portal
                 </motion.p>
@@ -197,7 +197,7 @@ export function Login() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.6, delay: 0.6 }}
                 onSubmit={handleSubmit} 
-                className="space-y-6"
+                className="space-y-4 sm:space-y-6"
               >
                 {error && (
                   <motion.div
@@ -260,7 +260,7 @@ export function Login() {
                 <Button 
                   type="submit" 
                   variant="gradient" 
-                  className="w-full h-12 text-base font-medium group"
+                  className="w-full h-10 sm:h-12 text-sm sm:text-base font-medium group"
                   disabled={isLoading}
                 >
                   {isLoading ? (

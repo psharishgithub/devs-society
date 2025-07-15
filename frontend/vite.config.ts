@@ -5,15 +5,11 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   server: {
-    host: true, // Allow external access
-    allowedHosts: [
-      'localhost',
-      '127.0.0.1',
-      '.ngrok-free.app', // Allow all ngrok subdomains
-      '.ngrok.io', // Allow ngrok.io domains
-      '.ngrok.app', // Allow ngrok.app domains
-      '*',
-    ],
+    host: '0.0.0.0', // Allow external access
+    allowedHosts: true, // Allow all hosts
     cors: true, // Enable CORS
+    hmr: {
+      host: '0.0.0.0', // Allow HMR from any host
+    },
   },
 })

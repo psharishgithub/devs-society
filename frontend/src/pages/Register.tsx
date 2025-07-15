@@ -336,11 +336,16 @@ export function Register() {
             transition={{ duration: 0.6 }}
             className="flex items-center gap-3"
           >
-            <div className="p-2 rounded-lg bg-gradient-to-r from-purple-500 to-cyan-500 animate-pulse-glow">
+            {/* <div className="p-2 rounded-lg bg-gradient-to-r from-purple-500 to-cyan-500 animate-pulse-glow">
               <Code className="h-8 w-8 text-white" />
-            </div>
+            </div> */}
             <div>
-              <span className="text-2xl font-bold font-techie">DEVS</span>
+            <img 
+              src="/images/DEVS_White.png" 
+              alt="DEVS" 
+              className="h-6 sm:h-8 md:h-10 lg:h-12 w-auto mb-1 sm:mb-2"
+            />
+              {/* <span className="text-2xl font-bold font-techie">DEVS</span> */}
               <span className="text-lg text-gray-400 ml-2">Portal</span>
             </div>
           </motion.div>
@@ -439,7 +444,7 @@ export function Register() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.6, delay: 0.6 }}
                 onSubmit={handleSubmit} 
-                className="space-y-6"
+                className="space-y-6 register-form"
               >
                 {error && (
                   <motion.div
@@ -582,30 +587,41 @@ export function Register() {
                         <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none z-10">
                           <Calendar className="h-5 w-5 text-gray-400" />
                         </div>
-                        <select
-                          id="batchYear"
-                          name="batchYear"
-                          value={formData.batchYear}
-                          onChange={handleInputChange}
-                          required
-                          disabled={!formData.college || !colleges.find(college => college.value === formData.college)?.batchYears.length}
-                          className="w-full pl-14 pr-4 py-3 rounded-lg border border-gray-700 bg-black/30 backdrop-blur-sm text-white focus:ring-2 focus:ring-cyan-400/50 focus:border-cyan-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                          style={{ borderRadius: '0.5rem' }}
-                        >
-                          <option value="">
-                            {!formData.college 
-                              ? 'Select your batch' 
-                              : !colleges.find(college => college.value === formData.college)?.batchYears.length
-                              ? 'No batch years available for this college'
-                              : 'Select your batch'
-                            }
-                          </option>
-                          {colleges.find(college => college.value === formData.college)?.batchYears.map((batch) => (
-                            <option key={batch.value} value={batch.value}>
-                              {batch.label}
-                            </option>
-                          ))}
-                        </select>
+                        {(() => {
+                          const selectedCollege = colleges.find(college => college.value === formData.college);
+                          const batchYears = selectedCollege?.batchYears || [];
+                          const shouldShowSize = batchYears.length > 5;
+                          
+                          return (
+                            <select
+                              id="batchYear"
+                              name="batchYear"
+                              value={formData.batchYear}
+                              onChange={handleInputChange}
+                              required
+                              disabled={!formData.college || !batchYears.length}
+                              size={shouldShowSize ? 5 : undefined}
+                              className="w-full pl-14 pr-4 py-3 rounded-lg border border-gray-700 bg-black/30 backdrop-blur-sm text-white focus:ring-2 focus:ring-cyan-400/50 focus:border-cyan-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                              style={{ 
+                                borderRadius: '0.5rem'
+                              }}
+                            >
+                              <option value="">
+                                {!formData.college 
+                                  ? 'Select your batch' 
+                                  : !batchYears.length
+                                  ? 'No batch years available for this college'
+                                  : 'Select your batch'
+                                }
+                              </option>
+                              {batchYears.map((batch) => (
+                                <option key={batch.value} value={batch.value}>
+                                  {batch.label}
+                                </option>
+                              ))}
+                            </select>
+                          );
+                        })()}
                       </div>
                       {validationErrors.batchYear && (
                         <p className="text-red-400 text-xs mt-1 flex items-center gap-1">

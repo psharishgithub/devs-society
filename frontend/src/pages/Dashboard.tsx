@@ -220,10 +220,10 @@ export function Dashboard() {
             </div>
             <span className="text-sm sm:text-lg text-gray-400 ml-1 sm:ml-2 hidden">Portal</span> */}
                 <img 
-                    src="/images/devslogo.png" 
-                    alt="DEVS" 
-                    className="h-28 sm:h-36 w-auto mb-2"
-                  />
+                  src="/images/devslogo.png" 
+                  alt="DEVS" 
+                  className="h-12 sm:h-16 md:h-20 lg:h-24 xl:h-28 2xl:h-36 w-auto mb-2"
+                />
           </motion.div>
           
           {/* Mobile Menu Button */}
@@ -404,11 +404,11 @@ export function Dashboard() {
               </span>
             </div>
             
-            <h1 className="text-3xl sm:text-5xl md:text-7xl font-bold mb-6 font-techie">
+            <h1 className="text-2xl sm:text-3xl md:text-5xl lg:text-7xl font-bold mb-4 sm:mb-6 font-techie">
               Welcome, <span className="text-gradient glitch-text">{user.fullName.split(' ')[0]}</span>!
             </h1>
             
-            <p className="text-lg sm:text-xl text-gray-300 max-w-2xl mx-auto mb-8 px-4">
+            <p className="text-base sm:text-lg md:text-xl text-gray-300 max-w-2xl mx-auto mb-6 sm:mb-8 px-4">
               Your digital workspace awaits. Manage your membership, explore events, and connect with the DEVS community.
             </p>
             

@@ -110,7 +110,7 @@ export interface Database {
           college: string
           college_ref_id: string | null
           batch_year: string
-          role: 'core-member' | 'board-member' | 'special-member' | 'other'
+          role: 'core-member' | 'board-member' | 'special-member' | 'regular-member' | 'other'
           photo_url: string | null
           member_id: string
           is_active: boolean
@@ -125,7 +125,7 @@ export interface Database {
           college: string
           college_ref_id?: string | null
           batch_year: string
-          role?: 'core-member' | 'board-member' | 'special-member' | 'other'
+          role?: 'core-member' | 'board-member' | 'special-member' | 'regular-member' | 'other'
           photo_url?: string | null
           member_id?: string
           is_active?: boolean
@@ -140,7 +140,7 @@ export interface Database {
           college?: string
           college_ref_id?: string | null
           batch_year?: string
-          role?: 'core-member' | 'board-member' | 'special-member' | 'other'
+          role?: 'core-member' | 'board-member' | 'special-member' | 'regular-member' | 'other'
           photo_url?: string | null
           member_id?: string
           is_active?: boolean
@@ -388,7 +388,7 @@ export interface Database {
       [_ in never]: never
     }
     Enums: {
-      user_role: 'core-member' | 'board-member' | 'special-member' | 'other'
+      user_role: 'core-member' | 'board-member' | 'special-member' | 'regular-member' | 'other'
       admin_role: 'super-admin' | 'admin'
       event_type: 'college-specific' | 'open-to-all'
       event_category: 'workshop' | 'seminar' | 'hackathon' | 'competition' | 'meetup' | 'other'

@@ -4,24 +4,14 @@ import jwt from 'jsonwebtoken'
 import UserService from '../services/userService'
 import CollegeService from '../services/collegeService'
 import multer from 'multer'
-import path from 'path'
+import storageService from '../services/supabaseStorage'
 
 const router = express.Router()
 
-// Configure multer for file uploads
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, 'uploads/photos/')
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9)
-    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname))
-  }
-})
-
-const upload = multer({ 
-  storage,
-  limits: { fileSize: 2 * 1024 * 1024 }, // 2MB limit
+// Configure multer for file uploads (use memory storage for Supabase upload)
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
   fileFilter: (req, file, cb) => {
     if (file.mimetype.startsWith('image/')) {
       cb(null, true)
@@ -42,7 +32,7 @@ router.post('/register',
     body('phone').trim().isLength({ min: 10 }).withMessage('Phone number must be at least 10 characters'),
     body('college').trim().isLength({ min: 2 }).withMessage('College name is required'),
     body('batchYear').trim().notEmpty().withMessage('Batch year is required'),
-    body('role').isIn(['core-member', 'board-member', 'special-member', 'other']).withMessage('Invalid role')
+    body('role').isIn(['core-member', 'board-member', 'special-member', 'regular-member', 'other']).withMessage('Invalid role')
   ],
   async (req: express.Request, res: express.Response) => {
     try {
@@ -119,17 +109,48 @@ router.post('/register',
         role: role || 'other'
       }
 
-      // Handle photo upload (optional)
+      // Create user first (without photo)
+      const user = await UserService.createUser(userData)
+
+      // Handle photo upload after user creation (optional)
       if (req.file) {
         try {
-        userData.photoUrl = `/uploads/photos/${req.file.filename}`
+          console.log('Photo upload received during registration:', req.file.originalname)
+          console.log('File size:', req.file.size, 'bytes')
+          console.log('File mimetype:', req.file.mimetype)
+          
+          // Check if Supabase service role key is configured
+          if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+            console.error('SUPABASE_SERVICE_ROLE_KEY not configured')
+            // Continue without photo
+            console.log('Continuing registration without photo due to missing service role key')
+          } else {
+            // Upload to Supabase storage with actual user ID
+            const uploadResult = await storageService.uploadProfilePhoto(
+              req.file.buffer,
+              req.file.originalname,
+              user.id
+            )
+
+            console.log('Registration upload result:', uploadResult)
+
+            if (uploadResult.success && uploadResult.url) {
+              // Update user with photo URL
+              await UserService.updateUser(user.id, { photoUrl: uploadResult.url })
+              user.photoUrl = uploadResult.url
+              console.log('Photo URL updated for user:', uploadResult.url)
+            } else {
+              console.error('Registration upload failed:', uploadResult.error)
+              // Continue without photo
+              console.log('Continuing registration without photo due to upload failure')
+            }
+          }
         } catch (uploadError) {
-          console.warn('Photo upload failed, continuing without photo:', uploadError)
-          // Continue registration without photo
+          console.error('Registration photo upload error:', uploadError)
+          // Continue without photo
+          console.log('Continuing registration without photo due to upload error')
         }
       }
-
-      const user = await UserService.createUser(userData)
 
       // Generate JWT token
       const payload = {

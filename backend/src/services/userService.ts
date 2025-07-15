@@ -9,7 +9,7 @@ export interface IUser {
   college: string // This will now contain the college name
   collegeRef?: string // Reference to College ID
   batchYear: string
-  role: 'core-member' | 'board-member' | 'special-member' | 'other'
+  role: 'core-member' | 'board-member' | 'special-member' | 'regular-member' | 'other'
   photoUrl?: string
   memberId: string
   isActive: boolean
@@ -24,7 +24,7 @@ export interface CreateUserData {
   college: string
   collegeRef?: string
   batchYear: string
-  role?: 'core-member' | 'board-member' | 'special-member' | 'other'
+  role?: 'core-member' | 'board-member' | 'special-member' | 'regular-member' | 'other'
   photoUrl?: string
 }
 
@@ -35,7 +35,7 @@ export interface UpdateUserData {
   college?: string
   collegeRef?: string
   batchYear?: string
-  role?: 'core-member' | 'board-member' | 'special-member' | 'other'
+  role?: 'core-member' | 'board-member' | 'special-member' | 'regular-member' | 'other'
   photoUrl?: string
   isActive?: boolean
 }

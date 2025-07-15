@@ -692,7 +692,7 @@ export function Dashboard() {
             </div>
           </div>
 
-          {/* Footer Message */}
+          {/* Footer Message 
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -705,7 +705,7 @@ export function Dashboard() {
                 support@devs-society.com
               </a>
             </p>
-          </motion.div>
+          </motion.div>*/}
         </div>
       </div>
 

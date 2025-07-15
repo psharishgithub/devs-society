@@ -1,0 +1,714 @@
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = __importDefault(require("express"));
+const express_validator_1 = require("express-validator");
+const eventService_1 = __importDefault(require("../services/eventService"));
+const userService_1 = __importDefault(require("../services/userService"));
+const auth_1 = __importDefault(require("../middleware/auth"));
+const collegeService_1 = __importDefault(require("../services/collegeService"));
+const multer_1 = __importDefault(require("multer"));
+const supabaseStorage_1 = __importDefault(require("../services/supabaseStorage"));
+const Razorpay = require('razorpay');
+const nodemailer = require('nodemailer');
+const crypto = require('crypto');
+const router = express_1.default.Router();
+const razorpay = new Razorpay({
+    key_id: process.env.RAZORPAY_KEY_ID || 'rzp_test_RVKFS8WX756Anx',
+    key_secret: process.env.RAZORPAY_KEY_SECRET || 'kpUZ6zd9t5q7VRM2c76xnqdo'
+});
+const upload = (0, multer_1.default)({
+    storage: multer_1.default.memoryStorage(),
+    limits: { fileSize: 5 * 1024 * 1024 },
+    fileFilter: (req, file, cb) => {
+        if (file.mimetype.startsWith('image/'))
+            cb(null, true);
+        else
+            cb(new Error('Only image files are allowed'));
+    }
+});
+// @route   GET /api/events
+// @desc    Get all active events
+// @access  Private
+router.get('/', auth_1.default, async (req, res) => {
+    try {
+        const { search, eventType, college } = req.query;
+        let events;
+        if (search) {
+            events = await eventService_1.default.searchEvents(search);
+        }
+        else if (college) {
+            events = await eventService_1.default.getEventsByCollege(college);
+        }
+        else {
+            events = await eventService_1.default.getAllEvents();
+        }
+        res.json({
+            success: true,
+            count: events.length,
+            events
+        });
+    }
+    catch (error) {
+        console.error('Events fetch error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Server error'
+        });
+    }
+});
+// @route   GET /api/events/upcoming
+// @desc    Get upcoming events only
+// @access  Private
+router.get('/upcoming', auth_1.default, async (req, res) => {
+    try {
+        const events = await eventService_1.default.getUpcomingEvents();
+        res.json({
+            success: true,
+            count: events.length,
+            events
+        });
+    }
+    catch (error) {
+        console.error('Upcoming events fetch error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Server error'
+        });
+    }
+});
+// @route   GET /api/events/with-pricing
+// @desc    Get events with personalized pricing based on user's college and batch year
+// @access  Private
+router.get('/with-pricing', auth_1.default, async (req, res) => {
+    try {
+        const userId = req.user.id;
+        // Get user details to determine college and batch year
+        const user = await userService_1.default.findById(userId);
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: 'User not found'
+            });
+        }
+        // Get all events
+        const events = await eventService_1.default.getAllEvents();
+        // Get user's college info
+        let userCollege = null;
+        if (user.collegeRef) {
+            userCollege = await collegeService_1.default.findById(user.collegeRef);
+        }
+        // Process events to add personalized pricing
+        const eventsWithPricing = await Promise.all(events.map(async (event) => {
+            let personalizedPrice = event.price || 0;
+            let priceInfo = {
+                isPaid: event.isPaid,
+                price: personalizedPrice,
+                adminName: null,
+                collegeName: null,
+                batchYear: null
+            };
+            if (event.isPaid) {
+                if (event.eventType === 'open-to-all' && event.adminPricing && event.adminPricing.length > 0) {
+                    // For open-to-all events, find the admin that matches user's college and batch year
+                    if (userCollege) {
+                        // Get admins for user's college
+                        const AdminService = require('../services/adminService').default;
+                        const collegeAdmins = await AdminService.getAdminsByCollege(userCollege.id, true);
+                        // Find admin that matches user's batch year
+                        const matchingAdmin = collegeAdmins.find((admin) => admin.batchYear?.toString() === user.batchYear);
+                        if (matchingAdmin) {
+                            // Find the pricing for this admin
+                            const adminPricing = event.adminPricing.find(p => p.adminId === matchingAdmin.id);
+                            if (adminPricing) {
+                                personalizedPrice = adminPricing.amount;
+                                priceInfo = {
+                                    isPaid: true,
+                                    price: personalizedPrice,
+                                    adminName: matchingAdmin.fullName,
+                                    collegeName: userCollege.name,
+                                    batchYear: user.batchYear
+                                };
+                            }
+                        }
+                    }
+                }
+                else if (event.eventType === 'college-specific') {
+                    // For college-specific events, check if user's college matches
+                    if (userCollege && event.targetCollege === userCollege.id) {
+                        priceInfo = {
+                            isPaid: true,
+                            price: event.price || 0,
+                            adminName: null,
+                            collegeName: userCollege.name,
+                            batchYear: null
+                        };
+                    }
+                    else {
+                        // User is not from the target college, so event is not available
+                        priceInfo = {
+                            isPaid: false,
+                            price: 0,
+                            adminName: null,
+                            collegeName: null,
+                            batchYear: null
+                        };
+                    }
+                }
+            }
+            return {
+                ...event,
+                price: personalizedPrice,
+                priceInfo
+            };
+        }));
+        res.json({
+            success: true,
+            events: eventsWithPricing,
+            userInfo: {
+                college: user.college,
+                batchYear: user.batchYear,
+                collegeRef: user.collegeRef
+            }
+        });
+    }
+    catch (error) {
+        console.error('Error fetching events with pricing:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Server error'
+        });
+    }
+});
+// @route   GET /api/events/test-admins
+// @desc    Test endpoint to check admin data
+// @access  Private
+router.get('/test-admins', async (req, res) => {
+    try {
+        console.log('Testing admin data...');
+        // Simple test - just return success for now
+        res.json({
+            success: true,
+            message: 'Test endpoint working - UPDATED VERSION',
+            timestamp: new Date().toISOString(),
+            allAdminsCount: 0,
+            adminRoleCount: 0,
+            sampleAdmin: null
+        });
+    }
+    catch (error) {
+        console.error('Error testing admins:', error);
+        res.status(500).json({ success: false, message: 'Server error', error: error.message });
+    }
+});
+// @route   GET /api/events/admins-for-events
+// @desc    Get all admins for open-to-all events (user-facing)
+// @access  Private
+router.get('/admins-for-events', async (req, res) => {
+    try {
+        console.log('Getting admins for events...');
+        // Get real admin data from database
+        const AdminService = require('../services/adminService').default;
+        const adminsByCollege = await AdminService.getAdminsForEvents();
+        console.log('Admins by college result:', adminsByCollege);
+        res.json({
+            success: true,
+            adminsByCollege,
+            timestamp: new Date().toISOString(),
+            message: 'Real-time admin data from database'
+        });
+    }
+    catch (error) {
+        console.error('Error fetching admins for events:', error);
+        res.status(500).json({ success: false, message: 'Server error', error: error.message });
+    }
+});
+// @route   GET /api/events/:id
+// @desc    Get single event with registrations
+// @access  Private
+router.get('/:id', auth_1.default, async (req, res) => {
+    try {
+        const event = await eventService_1.default.findById(req.params.id);
+        if (!event) {
+            return res.status(404).json({
+                success: false,
+                message: 'Event not found'
+            });
+        }
+        // Get registrations for this event
+        const registrations = await eventService_1.default.getEventRegistrations(req.params.id);
+        res.json({
+            success: true,
+            event: {
+                ...event,
+                registrations
+            }
+        });
+    }
+    catch (error) {
+        console.error('Event fetch error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Server error'
+        });
+    }
+});
+// @route   POST /api/events
+// @desc    Create a new event (admin only)
+// @access  Private
+router.post('/', auth_1.default, upload.single('photo'), [
+    (0, express_validator_1.body)('title').trim().isLength({ min: 3 }).withMessage('Title must be at least 3 characters'),
+    (0, express_validator_1.body)('description').trim().isLength({ min: 10 }).withMessage('Description must be at least 10 characters'),
+    (0, express_validator_1.body)('date').isISO8601().withMessage('Invalid date format'),
+    (0, express_validator_1.body)('location').trim().isLength({ min: 3 }).withMessage('Location must be at least 3 characters'),
+    (0, express_validator_1.body)('eventType').isIn(['open-to-all', 'college-specific']).withMessage('Invalid event type'),
+    (0, express_validator_1.body)('maxAttendees').optional().isInt({ min: 1 }).withMessage('Max attendees must be a positive number')
+], async (req, res) => {
+    try {
+        const errors = (0, express_validator_1.validationResult)(req);
+        if (!errors.isEmpty()) {
+            return res.status(400).json({
+                success: false,
+                message: 'Validation failed',
+                errors: errors.array()
+            });
+        }
+        const { title, description, date, time, location, eventType, category, maxAttendees, targetCollege, adminPricing, ...rest } = req.body;
+        let photoUrl = '';
+        if (req.file) {
+            const uploadResult = await supabaseStorage_1.default.uploadEventPhoto(req.file.buffer, req.file.originalname, title.replace(/\s+/g, '-'));
+            if (uploadResult.success && uploadResult.url) {
+                photoUrl = uploadResult.url;
+            }
+            else {
+                return res.status(400).json({ success: false, message: uploadResult.error || 'Failed to upload event photo' });
+            }
+        }
+        // Parse adminPricing if it's a JSON string
+        let parsedAdminPricing = [];
+        if (adminPricing) {
+            try {
+                parsedAdminPricing = typeof adminPricing === 'string' ? JSON.parse(adminPricing) : adminPricing;
+            }
+            catch (error) {
+                console.error('Error parsing adminPricing:', error);
+                return res.status(400).json({ success: false, message: 'Invalid adminPricing format' });
+            }
+        }
+        const eventData = {
+            title,
+            description,
+            date,
+            time,
+            location,
+            eventType,
+            category,
+            maxAttendees,
+            targetCollege,
+            adminPricing: parsedAdminPricing,
+            photoUrl,
+            ...rest
+        };
+        const event = await eventService_1.default.createEvent(eventData);
+        res.status(201).json({ success: true, event });
+    }
+    catch (error) {
+        console.error('Event creation error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+});
+// @route   PUT /api/events/:id
+// @desc    Update event details
+// @access  Private
+router.put('/:id', auth_1.default, upload.single('photo'), async (req, res) => {
+    try {
+        const { title, description, date, time, location, eventType, maxAttendees, isActive, category, targetCollege } = req.body;
+        let photoUrl = undefined;
+        if (req.file) {
+            const uploadResult = await supabaseStorage_1.default.uploadEventPhoto(req.file.buffer, req.file.originalname, title?.replace(/\s+/g, '-') || 'event');
+            if (uploadResult.success && uploadResult.url) {
+                photoUrl = uploadResult.url;
+            }
+            else {
+                return res.status(400).json({ success: false, message: uploadResult.error || 'Failed to upload event photo' });
+            }
+        }
+        const updateData = {
+            title,
+            description,
+            date,
+            time,
+            location,
+            eventType,
+            maxAttendees: maxAttendees ? parseInt(maxAttendees) : undefined,
+            isActive,
+            category,
+            targetCollege
+        };
+        // Only include photoUrl if a new photo was uploaded
+        if (photoUrl !== undefined) {
+            updateData.photoUrl = photoUrl;
+        }
+        const event = await eventService_1.default.updateEvent(req.params.id, updateData);
+        if (!event) {
+            return res.status(404).json({
+                success: false,
+                message: 'Event not found'
+            });
+        }
+        res.json({
+            success: true,
+            message: 'Event updated successfully',
+            event
+        });
+    }
+    catch (error) {
+        console.error('Event update error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Server error'
+        });
+    }
+});
+// Helper function to check if user is an admin
+const isUserAdmin = async (userEmail) => {
+    try {
+        const AdminService = require('../services/adminService').default;
+        const admin = await AdminService.findByEmail(userEmail);
+        return admin !== null;
+    }
+    catch (error) {
+        console.error('Error checking if user is admin:', error);
+        return false;
+    }
+};
+// @route   POST /api/events/:id/register
+// @desc    Register for an event
+// @access  Private
+router.post('/:id/register', auth_1.default, async (req, res) => {
+    try {
+        const eventId = req.params.id;
+        const userId = req.user.id;
+        // Check if user is an admin - prevent admins from registering as users
+        const isAdmin = await isUserAdmin(req.user.email);
+        if (isAdmin) {
+            return res.status(403).json({
+                success: false,
+                message: 'Admins cannot register for events as users. Please use your admin account for event management.'
+            });
+        }
+        // Get event details to check if it's paid
+        const event = await eventService_1.default.findById(eventId);
+        if (!event) {
+            return res.status(404).json({
+                success: false,
+                message: 'Event not found'
+            });
+        }
+        // For paid events, registration should only happen through payment verification
+        if (event.isPaid) {
+            return res.status(400).json({
+                success: false,
+                message: 'This is a paid event. Please complete payment to register.'
+            });
+        }
+        // Check if event exists and if user can register
+        const canRegister = await eventService_1.default.canUserRegister(eventId, userId);
+        if (!canRegister.canRegister) {
+            return res.status(400).json({
+                success: false,
+                message: canRegister.reason
+            });
+        }
+        // Register user for event
+        const registration = await eventService_1.default.registerForEvent(eventId, userId);
+        res.json({
+            success: true,
+            message: 'Successfully registered for event',
+            registration
+        });
+    }
+    catch (error) {
+        console.error('Event registration error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Server error'
+        });
+    }
+});
+// @route   GET /api/events/:id/registration-status
+// @desc    Check user's registration status for an event
+// @access  Private
+router.get('/:id/registration-status', auth_1.default, async (req, res) => {
+    try {
+        const eventId = req.params.id;
+        const userId = req.user.id;
+        // Check if user is an admin - prevent admins from checking registration status as users
+        const isAdmin = await isUserAdmin(req.user.email);
+        if (isAdmin) {
+            return res.status(403).json({
+                success: false,
+                message: 'Admins cannot check registration status as users. Please use your admin account for event management.'
+            });
+        }
+        // Get user's registrations for this event - only confirmed and waitlisted
+        const registrations = await eventService_1.default.getUserRegistrations(userId, 'confirmed');
+        const waitlistedRegistrations = await eventService_1.default.getUserRegistrations(userId, 'waitlisted');
+        const allValidRegistrations = [...registrations, ...waitlistedRegistrations];
+        const userRegistration = allValidRegistrations.find(reg => reg.eventId === eventId);
+        if (!userRegistration) {
+            return res.json({
+                success: true,
+                isRegistered: false
+            });
+        }
+        res.json({
+            success: true,
+            isRegistered: true,
+            status: userRegistration.status
+        });
+    }
+    catch (error) {
+        console.error('Registration status check error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Server error'
+        });
+    }
+});
+// Test Razorpay configuration
+router.get('/test-razorpay', auth_1.default, async (req, res) => {
+    try {
+        const testOrder = await razorpay.orders.create({
+            amount: 100, // 1 rupee
+            currency: 'INR',
+            receipt: `test_${Date.now()}`,
+            notes: {
+                test: 'true'
+            }
+        });
+        res.json({
+            success: true,
+            message: 'Razorpay is working correctly',
+            order: testOrder
+        });
+    }
+    catch (error) {
+        console.error('Razorpay test error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Razorpay configuration error',
+            error: error?.message || 'Unknown error'
+        });
+    }
+});
+// Create Razorpay order for event registration
+router.post('/:id/razorpay-order', auth_1.default, async (req, res) => {
+    // Check if user is an admin - prevent admins from registering as users
+    const isAdmin = await isUserAdmin(req.user.email);
+    if (isAdmin) {
+        return res.status(403).json({
+            success: false,
+            message: 'Admins cannot register for events as users. Please use your admin account for event management.'
+        });
+    }
+    try {
+        const { adminId } = req.body;
+        const eventId = req.params.id;
+        const userId = req.user.id; // Get user ID from authenticated request
+        // Get event details
+        console.log('Looking for event with ID:', eventId);
+        const event = await eventService_1.default.findById(eventId);
+        console.log('Event found:', event ? 'Yes' : 'No');
+        if (!event) {
+            return res.status(404).json({ success: false, message: 'Event not found' });
+        }
+        console.log('Event details:', {
+            id: event.id,
+            title: event.title,
+            isPaid: event.isPaid,
+            eventType: event.eventType,
+            price: event.price,
+            adminPricing: event.adminPricing
+        });
+        if (!event.isPaid) {
+            return res.status(400).json({ success: false, message: 'This event is free' });
+        }
+        let amount = 0;
+        // Handle different event types
+        console.log('Processing event type:', event.eventType);
+        console.log('Admin ID from request:', adminId);
+        console.log('Event admin pricing:', event.adminPricing);
+        if (event.eventType === 'open-to-all' && event.adminPricing && event.adminPricing.length > 0) {
+            // Find the specific admin pricing
+            console.log('Looking for admin ID:', adminId, 'in adminPricing:', event.adminPricing);
+            const adminPricing = event.adminPricing.find(p => p.adminId === adminId);
+            console.log('Found admin pricing:', adminPricing);
+            if (!adminPricing) {
+                console.log('Available admin pricing entries:', event.adminPricing.map(p => ({ adminId: p.adminId, amount: p.amount })));
+                return res.status(400).json({ success: false, message: 'Invalid admin selection' });
+            }
+            amount = adminPricing.amount * 100; // Convert to paise
+        }
+        else if (event.eventType === 'college-specific') {
+            amount = event.price * 100; // Convert to paise
+        }
+        else {
+            return res.status(400).json({ success: false, message: 'Invalid event pricing configuration' });
+        }
+        console.log('Calculated amount:', amount);
+        if (amount <= 0) {
+            return res.status(400).json({ success: false, message: 'Invalid amount' });
+        }
+        // Create Razorpay order
+        console.log('Creating Razorpay order with amount:', Math.round(amount));
+        const order = await razorpay.orders.create({
+            amount: Math.round(amount),
+            currency: 'INR',
+            receipt: `evt_${eventId.slice(0, 8)}_${Date.now().toString().slice(-8)}`,
+            notes: {
+                eventId: eventId,
+                userId: userId,
+                adminId: adminId,
+                eventTitle: event.title
+            }
+        });
+        console.log('Razorpay order created successfully:', order.id);
+        res.json({
+            success: true,
+            order,
+            event: {
+                id: event.id,
+                title: event.title,
+                amount: amount / 100
+            }
+        });
+    }
+    catch (error) {
+        console.error('Error creating Razorpay order:', error);
+        console.error('Error details:', {
+            message: error?.message || 'Unknown error',
+            stack: error?.stack,
+            eventId: req.params.id,
+            userId: req.user?.id,
+            adminId: req.body?.adminId
+        });
+        res.status(500).json({
+            success: false,
+            message: 'Failed to create payment order',
+            error: error?.message || 'Unknown error'
+        });
+    }
+});
+// Verify Razorpay payment
+router.post('/:id/verify-payment', auth_1.default, async (req, res) => {
+    // Check if user is an admin - prevent admins from registering as users
+    const isAdmin = await isUserAdmin(req.user.email);
+    if (isAdmin) {
+        return res.status(403).json({
+            success: false,
+            message: 'Admins cannot register for events as users. Please use your admin account for event management.'
+        });
+    }
+    try {
+        const { razorpay_payment_id, razorpay_order_id, razorpay_signature, adminId } = req.body;
+        const eventId = req.params.id;
+        const userId = req.user.id; // Get user ID from authenticated request
+        // Verify signature
+        const body = razorpay_order_id + "|" + razorpay_payment_id;
+        const expectedSignature = crypto
+            .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET || 'kpUZ6zd9t5q7VRM2c76xnqdo')
+            .update(body.toString())
+            .digest("hex");
+        if (expectedSignature !== razorpay_signature) {
+            return res.status(400).json({ success: false, message: 'Invalid payment signature' });
+        }
+        // Get event and user details
+        const [event, user] = await Promise.all([
+            eventService_1.default.findById(eventId),
+            userService_1.default.findById(userId)
+        ]);
+        if (!event || !user) {
+            return res.status(404).json({ success: false, message: 'Event or user not found' });
+        }
+        // Register user for event with payment verification
+        const registration = await eventService_1.default.registerForEventWithPayment(eventId, userId, {
+            paymentId: razorpay_payment_id,
+            amount: event.isPaid ? (event.eventType === 'open-to-all' ?
+                event.adminPricing?.find(p => p.adminId === adminId)?.amount || event.price :
+                event.price) : 0,
+            currency: 'INR',
+            verified: true
+        });
+        // Send confirmation email
+        try {
+            const transporter = nodemailer.createTransport({
+                service: 'gmail',
+                auth: {
+                    user: process.env.EMAIL_USER,
+                    pass: process.env.EMAIL_PASS
+                }
+            });
+            let adminInfo = '';
+            if (event.eventType === 'open-to-all' && adminId) {
+                const AdminService = require('../services/adminService').default;
+                const admin = await AdminService.findById(adminId);
+                if (admin) {
+                    adminInfo = `\nAdmin: ${admin.fullName} (${admin.collegeInfo?.name || 'Unknown College'})`;
+                }
+            }
+            const emailContent = `
+Hi ${user.fullName},
+
+Your registration for "${event.title}" has been confirmed!
+
+Event Details:
+- Title: ${event.title}
+- Date: ${event.date}
+- Time: ${event.time}
+- Location: ${event.location}${adminInfo}
+
+Payment Details:
+- Payment ID: ${razorpay_payment_id}
+- Amount: ₹${event.isPaid ? (event.eventType === 'open-to-all' ?
+                event.adminPricing?.find(p => p.adminId === adminId)?.amount || event.price :
+                event.price) : 0}
+
+Registration Status: ${registration.status}
+
+Thank you for registering!
+
+Best regards,
+Devs Society Team
+      `.trim();
+            await transporter.sendMail({
+                from: process.env.EMAIL_USER,
+                to: user.email,
+                subject: `Registration Confirmed: ${event.title}`,
+                text: emailContent,
+                html: emailContent.replace(/\n/g, '<br>')
+            });
+        }
+        catch (emailError) {
+            console.error('Failed to send confirmation email:', emailError);
+            // Don't fail the registration if email fails
+        }
+        res.json({
+            success: true,
+            message: 'Payment verified and registration confirmed',
+            registration
+        });
+    }
+    catch (error) {
+        console.error('Payment verification error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Payment verification failed',
+            error: error?.message || 'Unknown error'
+        });
+    }
+});
+exports.default = router;
+//# sourceMappingURL=events.js.map

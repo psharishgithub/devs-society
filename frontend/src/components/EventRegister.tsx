@@ -55,7 +55,7 @@ const EventRegister: React.FC<EventRegisterProps> = ({ event, user }) => {
 
         // 2. Open Razorpay modal
         const options = {
-          key: process.env.REACT_APP_RAZORPAY_KEY_ID,
+          key: import.meta.env.VITE_RAZORPAY_KEY_ID,
           amount: order.amount,
           currency: order.currency,
           name: event.title,

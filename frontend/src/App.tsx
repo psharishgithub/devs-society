@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { AuthProvider } from './contexts/AuthContext'
 import { LoadingScreen } from './components/loading-screen'
 import { ProtectedRoute } from './components/ProtectedRoute'
@@ -15,41 +15,56 @@ import AttendanceOverview from './pages/admin/AttendanceOverview';
 import { Participation } from './pages/superadmin/Participation';
 import { InternalBooking } from './pages/superadmin/InternalBooking';
 import SuperAdminDashboard from './components/SuperAdminDashboard';
+import { DeveloperCards } from './pages/Developers'
+import Footer from './components/Footer'
+
+function AppContent() {
+  const location = useLocation();
+  const hideFooter = location.pathname === '/developers';
+  
+  return (
+    <div className="App min-h-screen bg-black text-white flex flex-col">
+      <LoadingScreen />
+      <div className="flex-1 flex flex-col">
+        <Routes>
+          {/* Public Routes */}
+          <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
+          <Route path="/developers" element={<DeveloperCards />} />
+          
+          {/* Protected Routes */}
+          <Route path="/portal" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+          <Route path="/card" element={<ProtectedRoute><MemberCard /></ProtectedRoute>} />
+          <Route path="/events" element={<ProtectedRoute><Events /></ProtectedRoute>} />
+          <Route path="/event-payment/:eventId" element={<ProtectedRoute><EventPayment /></ProtectedRoute>} />
+          
+          {/* Admin Routes */}
+          <Route path="/admin/login" element={<AdminLogin />} />
+          <Route path="/admin/dashboard" element={<AdminDashboard />} />
+          <Route path="/admin/events/:eventId/attendance" element={<EventAttendance />} />
+          <Route path="/admin/events/attendance" element={<AttendanceOverview />} />
+          <Route path="/admin" element={<Navigate to="/admin/login" replace />} />
+          
+          {/* Super Admin Routes */}
+          <Route path="/superadmin" element={<SuperAdminDashboard />} />
+          <Route path="/superadmin/participation" element={<Participation />} />
+          <Route path="/superadmin/internal-booking" element={<InternalBooking />} />
+          
+          {/* Default redirect */}
+          <Route path="/" element={<Navigate to="/login" replace />} />
+          <Route path="*" element={<Navigate to="/login" replace />} />
+        </Routes>
+      </div>
+      {!hideFooter && <Footer />}
+    </div>
+  );
+}
 
 function App() {
   return (
     <AuthProvider>
       <Router>
-        <div className="App min-h-screen bg-black text-white">
-          <LoadingScreen />
-          <Routes>
-            {/* Public Routes */}
-            <Route path="/login" element={<Login />} />
-            <Route path="/register" element={<Register />} />
-            
-            {/* Protected Routes */}
-            <Route path="/portal" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-            <Route path="/card" element={<ProtectedRoute><MemberCard /></ProtectedRoute>} />
-            <Route path="/events" element={<ProtectedRoute><Events /></ProtectedRoute>} />
-            <Route path="/event-payment/:eventId" element={<ProtectedRoute><EventPayment /></ProtectedRoute>} />
-            
-            {/* Admin Routes */}
-            <Route path="/admin/login" element={<AdminLogin />} />
-            <Route path="/admin/dashboard" element={<AdminDashboard />} />
-            <Route path="/admin/events/:eventId/attendance" element={<EventAttendance />} />
-            <Route path="/admin/events/attendance" element={<AttendanceOverview />} />
-            <Route path="/admin" element={<Navigate to="/admin/login" replace />} />
-            
-            {/* Super Admin Routes */}
-            <Route path="/superadmin" element={<SuperAdminDashboard />} />
-            <Route path="/superadmin/participation" element={<Participation />} />
-            <Route path="/superadmin/internal-booking" element={<InternalBooking />} />
-            
-            {/* Default redirect */}
-            <Route path="/" element={<Navigate to="/login" replace />} />
-            <Route path="*" element={<Navigate to="/login" replace />} />
-          </Routes>
-        </div>
+        <AppContent />
       </Router>
     </AuthProvider>
   )

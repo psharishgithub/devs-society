@@ -40,7 +40,7 @@ export function MemberCard() {
                   eventId: event.id,
                   eventTitle: event.title,
                   eventDate: event.date,
-                  registrationStatus: registrationResponse.status,
+                  registrationStatus: registrationResponse.status === 'confirmed' ? 'registered' : registrationResponse.status,
                   isPaid: event.isPaid || event.priceInfo?.isPaid || false
                 }
               }

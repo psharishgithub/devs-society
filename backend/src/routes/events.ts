@@ -508,9 +508,12 @@ router.get('/:id/registration-status', auth, async (req, res) => {
       })
     }
 
-    // Get user's registrations for this event
-    const registrations = await EventService.getUserRegistrations(userId)
-    const userRegistration = registrations.find(reg => reg.eventId === eventId)
+    // Get user's registrations for this event - only confirmed and waitlisted
+    const registrations = await EventService.getUserRegistrations(userId, 'confirmed')
+    const waitlistedRegistrations = await EventService.getUserRegistrations(userId, 'waitlisted')
+    const allValidRegistrations = [...registrations, ...waitlistedRegistrations]
+    
+    const userRegistration = allValidRegistrations.find(reg => reg.eventId === eventId)
 
     if (!userRegistration) {
       return res.json({

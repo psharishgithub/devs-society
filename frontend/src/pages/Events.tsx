@@ -71,7 +71,7 @@ export function Events() {
                 ...event,
                 isRegistered: registrationResponse.success ? registrationResponse.isRegistered : false,
                 registrationStatus: (registrationResponse.success && registrationResponse.isRegistered 
-                  ? registrationResponse.status 
+                  ? (registrationResponse.status === 'confirmed' ? 'registered' : registrationResponse.status)
                   : undefined) as 'registered' | 'waitlisted' | 'cancelled' | undefined
               }
             } catch (error) {
@@ -410,6 +410,7 @@ export function Events() {
   const getStatusIcon = (status?: string) => {
     switch (status) {
       case 'registered':
+      case 'confirmed':
         return <UserCheck className="h-5 w-5 text-green-400" />
       case 'waitlisted':
         return <Clock className="h-5 w-5 text-yellow-400" />
@@ -423,6 +424,7 @@ export function Events() {
   const getStatusText = (status?: string) => {
     switch (status) {
       case 'registered':
+      case 'confirmed':
         return 'Registered'
       case 'waitlisted':
         return 'Waitlisted'
@@ -436,6 +438,7 @@ export function Events() {
   const getStatusColor = (status?: string) => {
     switch (status) {
       case 'registered':
+      case 'confirmed':
         return 'text-green-400'
       case 'waitlisted':
         return 'text-yellow-400'
@@ -508,7 +511,7 @@ export function Events() {
               <span className="text-3xl sm:text-5xl font-bold font-techie tracking-tight leading-none text-white" style={{letterSpacing: '-0.04em'}}>
                 DEVS
               </span>
-             
+         
             </div>
             <span className="text-sm sm:text-lg text-gray-400 ml-1 sm:ml-2">Events</span>
           </motion.div>

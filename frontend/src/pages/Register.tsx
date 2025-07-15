@@ -45,7 +45,8 @@ export function Register() {
         console.log('Loading colleges...')
         
         // Try to fetch colleges directly from the backend
-        const response = await fetch('http://localhost:5050/api/public/colleges')
+        const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5050/api'
+        const response = await fetch(`${API_BASE}/public/colleges`)
         const data = await response.json()
         
         console.log('API Response:', data)

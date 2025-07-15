@@ -67,7 +67,8 @@ export function EventPayment() {
       if (eventData.isPaid && eventData.eventType === 'open-to-all') {
         try {
           // Test without auth first
-          const testResponse = await fetch('http://localhost:5050/api/events/admins-for-events');
+          const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5050/api'
+          const testResponse = await fetch(`${API_BASE}/events/admins-for-events`);
           const testData = await testResponse.json();
           console.log('Test response without auth:', testData);
           console.log('Available colleges:', Object.keys(testData.adminsByCollege));
@@ -153,7 +154,8 @@ export function EventPayment() {
 
     try {
       // Create Razorpay order
-      const orderResponse = await fetch(`http://localhost:5050/api/events/${eventId}/razorpay-order`, {
+      const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5050/api'
+      const orderResponse = await fetch(`${API_BASE}/events/${eventId}/razorpay-order`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -180,7 +182,7 @@ export function EventPayment() {
         handler: async function (response: any) {
           try {
             // Verify payment
-            const verifyResponse = await fetch(`http://localhost:5050/api/events/${eventId}/verify-payment`, {
+            const verifyResponse = await fetch(`${API_BASE}/events/${eventId}/verify-payment`, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',

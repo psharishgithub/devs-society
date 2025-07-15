@@ -293,7 +293,8 @@ export function Events() {
 
     try {
       // Create Razorpay order
-      const orderResponse = await fetch(`http://localhost:5050/api/events/${event.id}/razorpay-order`, {
+      const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5050/api'
+      const orderResponse = await fetch(`${API_BASE}/events/${event.id}/razorpay-order`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -320,7 +321,8 @@ export function Events() {
         handler: async function (response: any) {
           try {
             // Verify payment
-            const verifyResponse = await fetch(`http://localhost:5050/api/events/${event.id}/verify-payment`, {
+            const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5050/api'
+            const verifyResponse = await fetch(`${API_BASE}/events/${event.id}/verify-payment`, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',

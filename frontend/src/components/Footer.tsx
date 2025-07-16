@@ -19,6 +19,7 @@ const Footer: React.FC = () => {
               <Link to="/privacy" className="hover:text-cyan-400 transition-colors">Privacy Policy</Link>
               <Link to="/cancellation" className="hover:text-cyan-400 transition-colors">Cancellation Policy</Link>
               <Link to="/refund" className="hover:text-cyan-400 transition-colors">Refund Policy</Link>
+              <Link to="/contact" className="hover:text-cyan-400 transition-colors">Contact Us</Link>
             </nav>
           </div>
         </div>

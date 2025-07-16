@@ -21,6 +21,7 @@ import Terms from './pages/Terms';
 import PrivacyPolicy from './pages/PrivacyPolicy';
 import RefundPolicy from './pages/RefundPolicy';
 import CancellationPolicy from './pages/CancellationPolicy';
+import ContactUs from './pages/Contact';
 
 function AppContent() {
   const location = useLocation();
@@ -39,6 +40,7 @@ function AppContent() {
           <Route path="/privacy" element={<PrivacyPolicy />} />
           <Route path="/refund" element={<RefundPolicy />} />
           <Route path="/cancellation" element={<CancellationPolicy />} />
+          <Route path="/contact" element={<ContactUs />} />
           
           {/* Protected Routes */}
           <Route path="/portal" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />

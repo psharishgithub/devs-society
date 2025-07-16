@@ -11,22 +11,14 @@ const Footer: React.FC = () => {
         <div className="flex-1 flex flex-col md:flex-row md:items-center gap-4">
           <div>
             <span className="block font-semibold text-white mb-1">Need help?</span>
-            <span>Contact us at <a href="mailto:support@devs-society.com" className="text-cyan-400 hover:underline">support@devs-society.com</a></span>
+            <span>Contact us at <a href="mailto:contact@devs-society.com" className="text-cyan-400 hover:underline">contact@devs-society.com</a></span>
           </div>
           <div className="md:ml-12">
             <nav className="flex gap-4 flex-wrap">
-             {/*} {!user && (
-                <>
-                  <Link to="/login" className="hover:text-cyan-400 transition-colors">Login</Link>
-                  <Link to="/register" className="hover:text-cyan-400 transition-colors">Register</Link>
-                </>
-              )}
-              {user && (
-                <>
-                  <Link to="/events" className="hover:text-cyan-400 transition-colors">Event</Link>
-                  <Link to="/card" className="hover:text-cyan-400 transition-colors">Card</Link>
-                </>
-              )} */}
+              <Link to="/terms" className="hover:text-cyan-400 transition-colors">Terms</Link>
+              <Link to="/privacy" className="hover:text-cyan-400 transition-colors">Privacy Policy</Link>
+              <Link to="/cancellation" className="hover:text-cyan-400 transition-colors">Cancellation Policy</Link>
+              <Link to="/refund" className="hover:text-cyan-400 transition-colors">Refund Policy</Link>
             </nav>
           </div>
         </div>

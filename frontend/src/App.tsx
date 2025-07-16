@@ -17,6 +17,10 @@ import { InternalBooking } from './pages/superadmin/InternalBooking';
 import SuperAdminDashboard from './components/SuperAdminDashboard';
 import { DeveloperCards } from './pages/Developers'
 import Footer from './components/Footer'
+import Terms from './pages/Terms';
+import PrivacyPolicy from './pages/PrivacyPolicy';
+import RefundPolicy from './pages/RefundPolicy';
+import CancellationPolicy from './pages/CancellationPolicy';
 
 function AppContent() {
   const location = useLocation();
@@ -31,6 +35,10 @@ function AppContent() {
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route path="/developers" element={<DeveloperCards />} />
+          <Route path="/terms" element={<Terms />} />
+          <Route path="/privacy" element={<PrivacyPolicy />} />
+          <Route path="/refund" element={<RefundPolicy />} />
+          <Route path="/cancellation" element={<CancellationPolicy />} />
           
           {/* Protected Routes */}
           <Route path="/portal" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />

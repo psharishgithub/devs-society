@@ -71,7 +71,7 @@ export function AdminSettings() {
               <label className="block text-sm font-medium text-gray-300 mb-2">
                 Support Email
               </label>
-              <Input defaultValue="support@devs-society.com" type="email" />
+              <Input defaultValue="contact@devs-society.com" type="email" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-2">

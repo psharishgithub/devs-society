@@ -706,8 +706,8 @@ export function Dashboard() {
           >
             <p className="text-gray-400 text-sm">
               Need help? Contact us at{' '}
-              <a href="mailto:support@devs-society.com" className="text-cyan-400 hover:text-cyan-300 underline">
-                support@devs-society.com
+              <a href="mailto:contact@devs-society.com" className="text-cyan-400 hover:text-cyan-300 underline">
+                contact@devs-society.com
               </a>
             </p>
           </motion.div>*/}

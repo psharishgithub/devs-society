@@ -10,14 +10,14 @@ const developers = [
     name: "GokulaKrishnan K",
     role: "Full Stack Developer",
     image: GKImage,
-    linkedin: "",
+    linkedin: "https://in.linkedin.com/in/gokulakrishnan-k-5452962a2",
     github: "https://github.com/Gokulakrishnan610",
   },
   {
     name: "Siva Sabari Ganesan A",
     role: "Full Stack Developer",
     image: SSGImage,
-    linkedin: "",
+    linkedin: "https://in.linkedin.com/in/siva-sabari-ganesan-a-b3288a28b",
     github: "https://github.com/SivaSabariGanesan",
   },
 ]

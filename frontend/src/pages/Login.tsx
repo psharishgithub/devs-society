@@ -226,7 +226,7 @@ export function Login() {
                     Email Address
                   </label>
                   <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                    <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
                       <Mail className="h-5 w-5 text-gray-400" />
                     </div>
                     <Input
@@ -237,7 +237,7 @@ export function Login() {
                       onChange={handleInputChange}
                       required
                       disabled={isLoading}
-                      className="pl-14 form-field"
+                      className="pl-10 py-3 rounded-lg border border-gray-600 bg-black/30 text-white placeholder-gray-400 focus:ring-2 focus:ring-cyan-400/50 focus:border-cyan-400 transition-all"
                     />
                   </div>
                 </div>
@@ -309,8 +309,8 @@ export function Login() {
               >
                 <p className="text-xs text-gray-500">
                   Having trouble? Contact{' '}
-                  <a href="mailto:support@devs-society.com" className="text-cyan-400 hover:text-cyan-300 underline">
-                    support@devs-society.com
+                  <a href="mailto:contact@devs-society.com" className="text-cyan-400 hover:text-cyan-300 underline">
+                    contact@devs-society.com
                   </a>
                 </p>
               </motion.div>

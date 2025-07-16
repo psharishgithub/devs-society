@@ -324,43 +324,37 @@ export function Register() {
   return (
     <div className="min-h-screen bg-black text-white overflow-hidden relative">
       <ParticlesComponent className="fixed inset-0" />
-      
       {/* Gradient overlay */}
       <div className="absolute inset-0 bg-gradient-to-br from-purple-950/20 via-black to-cyan-950/20"></div>
-      
       {/* Header */}
-      <header className="relative z-10 p-6">
-        <div className="container mx-auto flex justify-between items-center">
+      <header className="relative z-10 p-4 sm:p-6">
+        <div className="container mx-auto flex flex-col sm:flex-row justify-between items-center gap-2 sm:gap-0">
           <motion.div 
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.6 }}
-            className="flex items-center gap-3"
+            className="flex items-center gap-2 sm:gap-3"
           >
-            {/* <div className="p-2 rounded-lg bg-gradient-to-r from-purple-500 to-cyan-500 animate-pulse-glow">
-              <Code className="h-8 w-8 text-white" />
-            </div> */}
             <div>
-            <img 
-              src="/images/DEVS_White.png" 
-              alt="DEVS" 
-              className="h-6 sm:h-8 md:h-10 lg:h-12 w-auto mb-1 sm:mb-2"
-            />
-              {/* <span className="text-2xl font-bold font-techie">DEVS</span> */}
-              <span className="text-lg text-gray-400 ml-2">Portal</span>
+              <img 
+                src="/images/DEVS_White.png" 
+                alt="DEVS" 
+                className="h-7 w-auto sm:h-8 md:h-10 lg:h-12 mb-1 sm:mb-2"
+              />
+              <span className="text-base sm:text-lg text-gray-400 ml-1 sm:ml-2">Portal</span>
             </div>
           </motion.div>
           <motion.div 
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.6, delay: 0.2 }}
-            className="flex items-center gap-4"
+            className="flex items-center gap-2 sm:gap-4 mt-2 sm:mt-0"
           >
-            <Link to="/login" className="text-sm text-gray-300 hover:text-cyan-400 transition-colors">
+            <Link to="/login" className="text-xs sm:text-sm text-gray-300 hover:text-cyan-400 transition-colors">
               Login
             </Link>
             <Link to="/register">
-              <Button variant="gradient" size="sm">
+              <Button variant="gradient" size="sm" className="text-xs sm:text-sm px-3 py-1">
                 <UserPlus className="h-4 w-4" />
                 Register
               </Button>
@@ -368,7 +362,6 @@ export function Register() {
           </motion.div>
         </div>
       </header>
-
       {/* Main Content */}
       <div className="relative z-10 flex items-center justify-center min-h-[calc(100vh-120px)] px-4 py-8">
         <motion.div
@@ -466,60 +459,56 @@ export function Register() {
                     exit={{ opacity: 0, x: -20 }}
                     className="space-y-6"
                   >
-                    <div className="grid md:grid-cols-2 gap-4">
-                      <div>
-                        <label htmlFor="fullName" className="block text-sm font-medium text-gray-300 mb-2">
-                          Full Name *
-                        </label>
-                        <div className="relative">
-                          <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                            <User className="h-5 w-5 text-gray-400" />
-                          </div>
-                          <Input
-                            id="fullName"
-                            name="fullName"
-                            type="text"
-                            value={formData.fullName}
-                            onChange={handleInputChange}
-                            required
-                            className="pl-14 form-field"
-                          />
+                    <div>
+                      <label htmlFor="fullName" className="block text-sm font-medium text-gray-300 mb-2">
+                        Full Name *
+                      </label>
+                      <div className="relative">
+                        <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
+                          <User className="h-5 w-5 text-gray-400" />
                         </div>
-                        {validationErrors.fullName && (
-                          <p className="text-red-400 text-xs mt-1">{validationErrors.fullName}</p>
-                        )}
+                        <Input
+                          id="fullName"
+                          name="fullName"
+                          type="text"
+                          value={formData.fullName}
+                          onChange={handleInputChange}
+                          required
+                          className="pl-12 py-3 rounded-lg border border-gray-600 bg-black/30 text-white placeholder-gray-400 focus:ring-2 focus:ring-cyan-400/50 focus:border-cyan-400 transition-all"
+                        />
                       </div>
-                      
-                      <div>
-                        <label htmlFor="email" className="block text-sm font-medium text-gray-300 mb-2">
-                          Email Address *
-                        </label>
-                        <div className="relative">
-                          <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                            <Mail className="h-5 w-5 text-gray-400" />
-                          </div>
-                          <Input
-                            id="email"
-                            name="email"
-                            type="email"
-                            value={formData.email}
-                            onChange={handleInputChange}
-                            required
-                            className="pl-14 form-field"
-                          />
-                        </div>
-                        {validationErrors.email && (
-                          <p className="text-red-400 text-xs mt-1">{validationErrors.email}</p>
-                        )}
-                      </div>
+                      {validationErrors.fullName && (
+                        <p className="text-red-400 text-xs mt-1">{validationErrors.fullName}</p>
+                      )}
                     </div>
-                    
+                    <div>
+                      <label htmlFor="email" className="block text-sm font-medium text-gray-300 mb-2">
+                        Email Address *
+                      </label>
+                      <div className="relative">
+                        <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
+                          <Mail className="h-5 w-5 text-gray-400" />
+                        </div>
+                        <Input
+                          id="email"
+                          name="email"
+                          type="email"
+                          value={formData.email}
+                          onChange={handleInputChange}
+                          required
+                          className="pl-12 py-3 rounded-lg border border-gray-600 bg-black/30 text-white placeholder-gray-400 focus:ring-2 focus:ring-cyan-400/50 focus:border-cyan-400 transition-all"
+                        />
+                      </div>
+                      {validationErrors.email && (
+                        <p className="text-red-400 text-xs mt-1">{validationErrors.email}</p>
+                      )}
+                    </div>
                     <div>
                       <label htmlFor="phone" className="block text-sm font-medium text-gray-300 mb-2">
                         Phone Number *
                       </label>
                       <div className="relative">
-                        <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                        <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
                           <Phone className="h-5 w-5 text-gray-400" />
                         </div>
                         <Input
@@ -529,7 +518,7 @@ export function Register() {
                           value={formData.phone}
                           onChange={handleInputChange}
                           required
-                          className="pl-14 form-field"
+                          className="pl-12 py-3 rounded-lg border border-gray-600 bg-black/30 text-white placeholder-gray-400 focus:ring-2 focus:ring-cyan-400/50 focus:border-cyan-400 transition-all"
                         />
                       </div>
                       {validationErrors.phone && (
@@ -552,16 +541,13 @@ export function Register() {
                         College *
                       </label>
                       <div className="relative">
-                        <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none z-10">
-                          <Building className="h-5 w-5 text-gray-400" />
-                        </div>
                         <select
                           id="college"
                           name="college"
                           value={formData.college}
                           onChange={handleInputChange}
                           required
-                          className="w-full pl-14 pr-4 py-3 rounded-lg border border-gray-700 bg-black/30 backdrop-blur-sm text-white focus:ring-2 focus:ring-cyan-400/50 focus:border-cyan-400 transition-all"
+                          className="w-full pl-4 pr-4 py-3 rounded-lg border border-gray-700 bg-black/30 backdrop-blur-sm text-white focus:ring-2 focus:ring-cyan-400/50 focus:border-cyan-400 transition-all"
                           style={{ borderRadius: '0.5rem' }}
                         >
                           <option value="">Select your college</option>
@@ -585,44 +571,29 @@ export function Register() {
                         Batch Year *
                       </label>
                       <div className="relative">
-                        <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none z-10">
-                          <Calendar className="h-5 w-5 text-gray-400" />
-                        </div>
-                        {(() => {
-                          const selectedCollege = colleges.find(college => college.value === formData.college);
-                          const batchYears = selectedCollege?.batchYears || [];
-                          const shouldShowSize = batchYears.length > 5;
-                          
-                          return (
-                            <select
-                              id="batchYear"
-                              name="batchYear"
-                              value={formData.batchYear}
-                              onChange={handleInputChange}
-                              required
-                              disabled={!formData.college || !batchYears.length}
-                              size={shouldShowSize ? 5 : undefined}
-                              className="w-full pl-14 pr-4 py-3 rounded-lg border border-gray-700 bg-black/30 backdrop-blur-sm text-white focus:ring-2 focus:ring-cyan-400/50 focus:border-cyan-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                              style={{ 
-                                borderRadius: '0.5rem'
-                              }}
-                            >
-                              <option value="">
+                        <select
+                          id="batchYear"
+                          name="batchYear"
+                          value={formData.batchYear}
+                          onChange={handleInputChange}
+                          required
+                          className="w-full pl-4 pr-4 py-3 rounded-lg border border-gray-700 bg-black/30 backdrop-blur-sm text-white focus:ring-2 focus:ring-cyan-400/50 focus:border-cyan-400 transition-all"
+                          style={{ borderRadius: '0.5rem' }}
+                        >
+                          <option value="">
                                 {!formData.college 
                                   ? 'Select your batch' 
-                                  : !batchYears.length
+                                  : !colleges.find(college => college.value === formData.college)?.batchYears.length
                                   ? 'No batch years available for this college'
                                   : 'Select your batch'
                                 }
                               </option>
-                              {batchYears.map((batch) => (
+                              {colleges.find(college => college.value === formData.college)?.batchYears.map((batch) => (
                                 <option key={batch.value} value={batch.value}>
                                   {batch.label}
                                 </option>
                               ))}
-                            </select>
-                          );
-                        })()}
+                        </select>
                       </div>
                       {validationErrors.batchYear && (
                         <p className="text-red-400 text-xs mt-1 flex items-center gap-1">

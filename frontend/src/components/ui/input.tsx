@@ -10,7 +10,6 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
       <input
         type={type}
         className={cn(
-          "form-field",
           className
         )}
         ref={ref}
